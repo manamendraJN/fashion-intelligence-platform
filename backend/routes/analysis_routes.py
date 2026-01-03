@@ -18,9 +18,9 @@ analysis_bp = Blueprint('analysis', __name__)
 model_inference = None
 
 
-def init_analysis_routes(inference, health, size):
+def init_analysis_routes(inference):
     """Initialize route dependencies"""
-    global model_inference, health_analyzer, size_recommender
+    global model_inference
     model_inference = inference
 
 
