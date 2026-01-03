@@ -1,9 +1,3 @@
-"""
-Response formatting utilities for Body Measurement API
-Author: manamendraJN
-Date: 2025-11-18
-"""
-
 import numpy as np
 
 def format_measurements(measurements_dict):
