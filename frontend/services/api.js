@@ -51,36 +51,6 @@ export const apiService = {
     }
   },
 
-  // Get health insights
-  getHealthInsights: async (measurements, weightKg, gender) => {
-    try {
-      const response = await api.post('/health-insights', {
-        measurements,
-        weight_kg: weightKg,
-        gender,
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Health insights failed:', error);
-      throw error;
-    }
-  },
-
-  // Get size recommendations
-  getSizeRecommendations: async (measurements, gender, garmentType = 'top') => {
-    try {
-      const response = await api.post('/recommend-size', {
-        measurements,
-        gender,
-        garment_type: garmentType,
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Size recommendation failed:', error);
-      throw error;
-    }
-  },
-
   // Preview mask before analysis
   previewMask: async (imageFile) => {
     try {
