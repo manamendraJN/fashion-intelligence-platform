@@ -31,7 +31,7 @@ const MaskPreview = ({ original, preview, mask, onAccept, onRetry }) => {
 
         <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
             <div className="text-sm text-yellow-800">
               <p className="font-semibold mb-1">Tips for best results:</p>
               <ul className="list-disc list-inside space-y-1">

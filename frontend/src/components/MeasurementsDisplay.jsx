@@ -21,7 +21,7 @@ const MeasurementsDisplay = ({ measurements }) => {
         {measurementEntries.map(([key, data]) => (
           <div 
             key={key} 
-            className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100 hover:border-blue-200 hover:shadow-sm transition-all"
+            className=" from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100 hover:border-blue-200 hover:shadow-sm transition-all"
           >
             <p className="text-xs text-gray-600 uppercase tracking-wide font-medium mb-1.5">
               {key.replace(/-/g, ' ')}
