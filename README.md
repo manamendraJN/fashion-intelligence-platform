@@ -460,23 +460,6 @@ fix(backend): resolve CORS configuration issue
 docs(readme): update installation instructions
 ```
 
-## License
-
-Part of the Fashion Intelligence Platform project. 
-
-## Author
-
-**manamendraJN**
-- GitHub: [@manamendraJN](https://github.com/manamendraJN)
-
-## Contact & Support
-
-For questions, suggestions, or support: 
-- 💬 Issues: [GitHub Issues](https://github.com/manamendraJN/fashion-intelligence-platform/issues)
-- 📧 Email: your-email@example.com
-
----
-
 <p align="center">
   Made with ❤️ for sustainable and intelligent fashion
 </p>
