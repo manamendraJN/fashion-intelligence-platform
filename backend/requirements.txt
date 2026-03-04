@@ -1,0 +1,8 @@
+flask
+flask-cors
+torch
+torchvision
+pandas
+Pillow
+sqlite3
+scikit-learn
