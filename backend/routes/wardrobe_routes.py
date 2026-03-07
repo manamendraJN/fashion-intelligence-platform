@@ -141,10 +141,11 @@ def analyze_clothing():
 
         return jsonify({
             "success":       True,
-            "clothing_type": result["clothing"]["clothing_type"],
-            "confidence":    result["clothing"]["confidence"],
-            "best_event":    result["event_scores"]["best_event"],
-            "event_scores":  result["event_scores"]["scores"],
+            "clothing_type": result["clothing_type"],
+            "confidence":    result["confidence"],
+            "top_5":         result["top_5"],
+            "best_event":    result["best_event"],
+            "event_scores":  result["event_scores"],
             "metadata_used": result["metadata_used"]
         }), 200
 
