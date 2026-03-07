@@ -66,3 +66,39 @@ class Config:
        
     # CORS Configuration
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
+
+    # ── Wardrobe AI Configuration (NEW) ────────────────────────────
+    WARDROBE_MODEL_DIR = BASE_DIR / 'models' / 'wardrobe models'
+
+    WARDROBE_MODELS = {
+        'cnn':      'cnn_visual_features.keras',
+        'cnn_h5':   'cnn_visual_features.h5',
+        'event':    'event_association_model.keras',
+        'gru':      'gru_temporal_patterns.keras',
+        'lstm':     'lstm_temporal_patterns.keras',
+    }
+
+    WARDROBE_ENCODERS = {
+        'label':        'label_encoder.pkl',
+        'event':        'event_encoder.pkl',
+        'event_mlb':    'event_mlb.pkl',
+        'metadata':     'metadata_encoders.pkl',
+    }
+
+    # 20 clothing categories your CNN knows
+    CLOTHING_CLASSES = [
+        'Dresses', 'Jackets', 'Jeans', 'Jeggings', 'Kurtas',
+        'Kurtis', 'Leggings', 'Patiala', 'Salwar', 'Sarees',
+        'Shirts', 'Shorts', 'Skirts', 'Sweaters', 'Sweatshirts',
+        'Tops', 'Track Pants', 'Trousers', 'Tshirts', 'Tunics'
+    ]
+
+    # 12 event types your model scores
+    EVENT_CLASSES = [
+        'Beach Outing', 'Casual Outing', 'Date Night', 'Family Gathering',
+        'Gym', 'Office Meeting', 'Party', 'Religious Event',
+        'Shopping', 'Sports Event', 'Tamil Wedding', 'Western Wedding'
+    ]
+
+    # Wardrobe image input size
+    WARDROBE_IMG_SIZE = (224, 224)
