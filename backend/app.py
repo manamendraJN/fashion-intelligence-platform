@@ -11,11 +11,14 @@ from routes import (
     general_bp,
     model_bp,
     analysis_bp,
+    size_bp,
     init_general_routes,
     init_model_routes,
     init_analysis_routes,
+    init_size_routes,
     register_error_handlers
 )
+from routes.admin_routes import admin_bp
 
 # Configure logging
 logging.basicConfig(
@@ -26,7 +29,14 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, origins=Config.CORS_ORIGINS)
+
+# Configure CORS to allow requests from web frontend and mobile app
+CORS(app, 
+     resources={r"/*": {"origins": "*"}},  # Allow all origins for mobile tunnel support
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+)
 
 # Initialize services
 logger.info("🚀 Initializing Body Measurement AI API...")
@@ -58,11 +68,14 @@ logger.info("✅ API initialized successfully!")
 init_general_routes(model_inference)
 init_model_routes(model_inference, image_processor)
 init_analysis_routes(model_inference)
+init_size_routes()
 
 # Register blueprints
 app.register_blueprint(general_bp)
 app.register_blueprint(model_bp)
 app.register_blueprint(analysis_bp)
+app.register_blueprint(size_bp, url_prefix='/api/size')
+app.register_blueprint(admin_bp, url_prefix='/api/admin')
 
 # Register error handlers
 register_error_handlers(app)
