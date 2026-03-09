@@ -202,7 +202,7 @@ const MeasurementHistory = ({ userIdentifier = 'default' }) => {
         <div className="space-y-4">
           {history.map((record, index) => (
             <div
-              key={record.user_id}
+              key={record.measured_at}
               className="border border-[#E5E5E5] rounded-lg p-4 hover:bg-[#FAF8F5] transition-colors"
             >
               <div className="flex items-start justify-between mb-3">
