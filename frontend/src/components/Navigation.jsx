@@ -5,7 +5,6 @@ import { Sparkles, Upload, MessageSquare, BarChart2, Ruler, Shirt, Database } fr
 
 export function Navigation() {
   const location = useLocation();
-
   const navItems = [
     { path: '/', label: 'Upload', icon: Upload },
     { path: '/chat', label: 'Assistant', icon: MessageSquare },
@@ -32,7 +31,6 @@ export function Navigation() {
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
-
               return (
                 <Link
                   key={item.path}
