@@ -12,6 +12,11 @@ from pathlib import Path
 from PIL import Image
 from tensorflow import keras
 
+# Import improved event scoring from event_constants
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
+from core.event_constants import get_default_event_scores, STANDARD_EVENTS
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,93 +149,147 @@ class WardrobeModelService:
 
     def predict_event_scores(self, image_input, metadata: dict = None) -> dict:
         """
-        Try ML event model first → fallback to rule-based scores.
+        Use improved rule-based event scoring from event_constants.py
+        This replaces the unreliable ML event model with accurate, consistent scoring.
         Returns: { best_event, scores }
         """
         if not self._loaded:
             raise RuntimeError("Wardrobe models not loaded")
 
         clothing_type = metadata.get('article', 'Tops') if metadata else 'Tops'
+        
+        # ✅ Use improved rule-based scoring (supports all clothing types including traditional wear)
+        scores = get_default_event_scores(clothing_type)
+        
+        # Convert to old event name format for backward compatibility
+        # Maps new standard names back to old DB format if needed
+        old_format_scores = {}
+        event_name_mapping = {
+            'Casual': 'Casual Outing',
+            'Office': 'Office Meeting',
+            'Beach': 'Beach Outing',
+            'Date': 'Date Night',
+            'Sports': 'Sports Event',
+            'Religious': 'Religious Event',
+            'Family Gathering': 'Family Gathering'
+        }
+        
+        for new_name, score in scores.items():
+            old_name = event_name_mapping.get(new_name, new_name)
+            old_format_scores[old_name] = score
+        
+        best_event = max(old_format_scores, key=old_format_scores.get)
+        return {"best_event": best_event, "scores": old_format_scores}
 
-        # Try ML event model
-        if self.event_model and self.metadata_encoders and self.event_mlb:
-            try:
-                img_array = self.preprocess_image(image_input)
-                img_batch = np.expand_dims(img_array, axis=0)
-
-                meta = metadata or {}
-                article = meta.get('article', clothing_type)
-                color   = meta.get('color',   'Black')
-                usage   = meta.get('usage',   'Casual')
-                gender  = meta.get('gender',  'Women')
-
-                # Safe encode with fallback
-                def safe_encode(encoder, value, fallback):
-                    if value in encoder.classes_:
-                        return float(encoder.transform([value])[0])
-                    return float(encoder.transform([fallback])[0])
-
-                meta_features = np.array([[
-                    safe_encode(self.metadata_encoders['article'], article, 'Tops'),
-                    safe_encode(self.metadata_encoders['color'],   color,   'Black'),
-                    safe_encode(self.metadata_encoders['usage'],   usage,   'Casual'),
-                    safe_encode(self.metadata_encoders['gender'],  gender,  'Women'),
-                ]])
-
-                event_probs = self.event_model.predict(
-                    {'image_input': img_batch, 'metadata_input': meta_features},
-                    verbose=0
-                )[0]
-
-                event_names  = self.event_mlb.classes_
-                event_scores = {
-                    event: round(float(prob), 4)
-                    for event, prob in zip(event_names, event_probs)
-                }
-                best_event = max(event_scores, key=event_scores.get)
-                return {"best_event": best_event, "scores": event_scores}
-
-            except Exception as e:
-                logger.warning(f"Event model failed, using rule-based: {e}")
-
-        # ✅ Fallback: rule-based (same as old project)
-        scores     = self._get_rule_based_event_scores(clothing_type)
-        best_event = max(scores, key=scores.get)
-        return {"best_event": best_event, "scores": scores}
-
+    # ──────────────────────────────────────────────────────────────────
+    # DEPRECATED: Old rule-based scoring (kept for reference only)
+    # Now using get_default_event_scores() from core/event_constants.py
+    # ──────────────────────────────────────────────────────────────────
+    """
     def _get_rule_based_event_scores(self, clothing_type: str) -> dict:
-        """Rule-based event scores — mirrors old project logic exactly."""
+        #Rule-based event scores - updated to match ML model event names.
         t = clothing_type.lower()
 
+        # Map to ML model event names
         if any(x in t for x in ['suit', 'blazer', 'formal', 'tuxedo', 'evening gown']):
-            return {'Tamil Wedding': 0.85, 'Western Wedding': 0.85, 'Party': 0.80, 'Office': 0.90, 'Casual': 0.30}
+            return {
+                'Tamil Wedding': 0.85, 'Western Wedding': 0.85, 'Party': 0.80, 
+                'Office Meeting': 0.90, 'Casual Outing': 0.30, 'Beach Outing': 0.20,
+                'Date Night': 0.75, 'Family Gathering': 0.70, 'Shopping': 0.50,
+                'Gym': 0.05, 'Sports Event': 0.05, 'Religious Event': 0.70
+            }
 
         if any(x in t for x in ['saree', 'kurta', 'sherwani', 'lehenga', 'salwar', 'dupatta', 'kurtis', 'patiala']):
-            return {'Tamil Wedding': 0.95, 'Western Wedding': 0.70, 'Party': 0.75, 'Office': 0.50, 'Casual': 0.60}
+            return {
+                'Tamil Wedding': 0.95, 'Western Wedding': 0.70, 'Party': 0.75,
+                'Office Meeting': 0.50, 'Casual Outing': 0.60, 'Beach Outing': 0.30,
+                'Date Night': 0.70, 'Family Gathering': 0.90, 'Shopping': 0.60,
+                'Gym': 0.05, 'Sports Event': 0.05, 'Religious Event': 0.95
+            }
 
         if any(x in t for x in ['cocktail', 'party dress', 'evening', 'gown']):
-            return {'Tamil Wedding': 0.70, 'Western Wedding': 0.75, 'Party': 0.95, 'Office': 0.25, 'Casual': 0.40}
+            return {
+                'Tamil Wedding': 0.70, 'Western Wedding': 0.75, 'Party': 0.95,
+                'Office Meeting': 0.25, 'Casual Outing': 0.40, 'Beach Outing': 0.30,
+                'Date Night': 0.95, 'Family Gathering': 0.70, 'Shopping': 0.50,
+                'Gym': 0.05, 'Sports Event': 0.05, 'Religious Event': 0.60
+            }
 
-        if any(x in t for x in ['trousers', 'pencil skirt', 'chinos']):
-            return {'Tamil Wedding': 0.40, 'Western Wedding': 0.45, 'Party': 0.50, 'Office': 0.85, 'Casual': 0.60}
+        if any(x in t for x in ['trousers', 'pencil skirt', 'chinos', 'formal pants']):
+            return {
+                'Tamil Wedding': 0.40, 'Western Wedding': 0.45, 'Party': 0.50,
+                'Office Meeting': 0.90, 'Casual Outing': 0.70, 'Beach Outing': 0.30,
+                'Date Night': 0.60, 'Family Gathering': 0.65, 'Shopping': 0.75,
+                'Gym': 0.10, 'Sports Event': 0.10, 'Religious Event': 0.50
+            }
 
         if any(x in t for x in ['track', 'jogger', 'sports', 'athletic', 'gym', 'legging', 'training']):
-            return {'Tamil Wedding': 0.05, 'Western Wedding': 0.05, 'Party': 0.05, 'Office': 0.10, 'Casual': 0.95}
+            return {
+                'Tamil Wedding': 0.05, 'Western Wedding': 0.05, 'Party': 0.05,
+                'Office Meeting': 0.10, 'Casual Outing': 0.85, 'Beach Outing': 0.70,
+                'Date Night': 0.10, 'Family Gathering': 0.40, 'Shopping': 0.70,
+                'Gym': 0.98, 'Sports Event': 0.95, 'Religious Event': 0.05
+            }
 
         if any(x in t for x in ['jeans', 'tshirt', 't-shirt', 'shorts', 'casual', 'hoodie', 'sweatshirt']):
-            return {'Tamil Wedding': 0.15, 'Western Wedding': 0.15, 'Party': 0.30, 'Office': 0.40, 'Casual': 0.90}
+            return {
+                'Tamil Wedding': 0.15, 'Western Wedding': 0.15, 'Party': 0.30,
+                'Office Meeting': 0.35, 'Casual Outing': 0.95, 'Beach Outing': 0.75,
+                'Date Night': 0.50, 'Family Gathering': 0.80, 'Shopping': 0.90,
+                'Gym': 0.50, 'Sports Event': 0.40, 'Religious Event': 0.30
+            }
 
-        if any(x in t for x in ['jacket', 'sweater', 'sweatshirt']):
-            return {'Tamil Wedding': 0.30, 'Western Wedding': 0.35, 'Party': 0.45, 'Office': 0.60, 'Casual': 0.85}
+        # Check for formal jackets/blazers first (more specific)
+        if any(x in t for x in ['blazer', 'jacket']) and not any(x in t for x in ['bomber', 'denim', 'leather', 'windbreaker']):
+            return {
+                'Tamil Wedding': 0.70, 'Western Wedding': 0.75, 'Party': 0.80,
+                'Office Meeting': 0.95, 'Casual Outing': 0.40, 'Beach Outing': 0.20,
+                'Date Night': 0.75, 'Family Gathering': 0.70, 'Shopping': 0.60,
+                'Gym': 0.10, 'Sports Event': 0.10, 'Religious Event': 0.65
+            }
+        
+        # Casual outerwear (sweaters, cardigans, casual jackets)
+        if any(x in t for x in ['sweater', 'sweatshirt', 'cardigan', 'hoodie']):
+            return {
+                'Tamil Wedding': 0.20, 'Western Wedding': 0.25, 'Party': 0.35,
+                'Office Meeting': 0.50, 'Casual Outing': 0.90, 'Beach Outing': 0.40,
+                'Date Night': 0.50, 'Family Gathering': 0.75, 'Shopping': 0.85,
+                'Gym': 0.40, 'Sports Event': 0.30, 'Religious Event': 0.40
+            }
 
-        if any(x in t for x in ['skirt', 'dress', 'tunic']):
-            return {'Tamil Wedding': 0.50, 'Western Wedding': 0.55, 'Party': 0.65, 'Office': 0.70, 'Casual': 0.75}
+        if any(x in t for x in ['skirt', 'tunic']):
+            return {
+                'Tamil Wedding': 0.50, 'Western Wedding': 0.55, 'Party': 0.65,
+                'Office Meeting': 0.75, 'Casual Outing': 0.80, 'Beach Outing': 0.60,
+                'Date Night': 0.75, 'Family Gathering': 0.75, 'Shopping': 0.85,
+                'Gym': 0.15, 'Sports Event': 0.15, 'Religious Event': 0.60
+            }
+
+        if any(x in t for x in ['dress']):
+            return {
+                'Tamil Wedding': 0.50, 'Western Wedding': 0.55, 'Party': 0.70,
+                'Office Meeting': 0.60, 'Casual Outing': 0.85, 'Beach Outing': 0.75,
+                'Date Night': 0.85, 'Family Gathering': 0.80, 'Shopping': 0.85,
+                'Gym': 0.10, 'Sports Event': 0.10, 'Religious Event': 0.55
+            }
 
         if any(x in t for x in ['top', 'shirt', 'blouse']):
-            return {'Tamil Wedding': 0.40, 'Western Wedding': 0.40, 'Party': 0.55, 'Office': 0.75, 'Casual': 0.80}
+            return {
+                'Tamil Wedding': 0.40, 'Western Wedding': 0.40, 'Party': 0.55,
+                'Office Meeting': 0.80, 'Casual Outing': 0.85, 'Beach Outing': 0.60,
+                'Date Night': 0.65, 'Family Gathering': 0.75, 'Shopping': 0.85,
+                'Gym': 0.30, 'Sports Event': 0.30, 'Religious Event': 0.55
+            }
 
-        # Default
-        return {'Tamil Wedding': 0.50, 'Western Wedding': 0.50, 'Party': 0.50, 'Office': 0.50, 'Casual': 0.70}
+        # Default for unrecognized types
+        return {
+            'Tamil Wedding': 0.50, 'Western Wedding': 0.50, 'Party': 0.50,
+            'Office Meeting': 0.50, 'Casual Outing': 0.70, 'Beach Outing': 0.50,
+            'Date Night': 0.50, 'Family Gathering': 0.65, 'Shopping': 0.70,
+            'Gym': 0.30, 'Sports Event': 0.30, 'Religious Event': 0.50
+        }
+    """
+    # ──────────────────────────────────────────────────────────────────
 
     # ─────────────────────────── Full Analysis ──────────────────────
 
