@@ -1,190 +1,154 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, CheckCircle2 } from 'lucide-react';
+import { Upload, CheckCircle2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 
 export function WardrobeUpload({ onUploadComplete }) {
   const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('');
+  const [progress, setProgress]       = useState(0);
+  const [isComplete, setIsComplete]   = useState(false);
+  const [count, setCount]             = useState(0);
+  const [total, setTotal]             = useState(0);
 
-  // Backend-integrated upload handler - SUPPORTS MULTIPLE FILES
   const onDrop = useCallback(async (acceptedFiles) => {
-    if (acceptedFiles.length === 0) return;
-
+    if (!acceptedFiles.length) return;
     setIsUploading(true);
     setProgress(0);
-    setUploadStatus(`Uploading ${acceptedFiles.length} item${acceptedFiles.length > 1 ? 's' : ''}...`);
+    setTotal(acceptedFiles.length);
+    setCount(0);
 
-    const totalFiles = acceptedFiles.length;
-    let uploadedCount = 0;
+    let done = 0;
     const results = [];
 
     for (const file of acceptedFiles) {
-      const formData = new FormData();
-      formData.append('image', file);
-
+      const fd = new FormData();
+      fd.append('image', file);
       try {
-        const res = await fetch('http://localhost:5000/api/predict/clothing-type', {
-          method: 'POST',
-          body: formData,
-        });
-
+        const res  = await fetch('http://localhost:5000/api/predict/clothing-type', { method: 'POST', body: fd });
         const data = await res.json();
-        console.log('Backend result:', data);
         results.push(data);
-
-        uploadedCount++;
-        setProgress(Math.round((uploadedCount / totalFiles) * 100));
-        setUploadStatus(`Uploaded ${uploadedCount} of ${totalFiles} items...`);
-
-      } catch (err) {
-        console.error("Upload failed for", file.name, ":", err.message);
-        results.push({ success: false, error: err.message, filename: file.name });
+      } catch (e) {
+        results.push({ success: false, error: e.message });
       }
+      done++;
+      setCount(done);
+      setProgress(Math.round((done / acceptedFiles.length) * 100));
     }
 
     setIsUploading(false);
     setIsComplete(true);
-    setUploadStatus(`✓ Successfully uploaded ${uploadedCount} items!`);
-
     setTimeout(() => {
       onUploadComplete(results);
       setIsComplete(false);
       setProgress(0);
-      setUploadStatus('');
-    }, 1500);
-
+    }, 1600);
   }, [onUploadComplete]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.webp']
-    },
+    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
     multiple: true,
     disabled: isUploading,
+    noClick: true,
   });
 
   return (
-    <div className="w-full">
-      <div
-        {...getRootProps()}
-        className={cn(
-          'relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer overflow-hidden',
-          isDragActive
-            ? 'border-[#8B5A5A] bg-[#8B5A5A]/5'
-            : 'border-[#E5E0D8] hover:border-[#8B5A5A]/50 hover:bg-white',
-          isUploading && 'pointer-events-none bg-white'
+    <div {...getRootProps()} className="relative">
+      <input {...getInputProps()} />
+
+      {/* Drag-over glow border */}
+      <AnimatePresence>
+        {isDragActive && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute -inset-1 rounded-2xl border-2 border-dashed border-[#8B5A5A] bg-[#8B5A5A]/5 z-10 flex items-center justify-center pointer-events-none"
+          >
+            <span className="text-[#8B5A5A] text-sm font-medium">Drop to add</span>
+          </motion.div>
         )}
-      >
-        <input {...getInputProps()} />
+      </AnimatePresence>
 
-        <AnimatePresence mode="wait">
-          {isUploading ? (
-            <motion.div
-              key="uploading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center py-4"
-            >
-              <div className="relative w-16 h-16 mb-4">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="28"
-                    stroke="#E5E0D8"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="28"
-                    stroke="#8B5A5A"
-                    strokeWidth="4"
-                    fill="none"
-                    strokeDasharray="175.93"
-                    strokeDashoffset={175.93 - (175.93 * progress) / 100}
-                    className="transition-all duration-100 ease-linear"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-[#8B5A5A]">
-                  {progress}%
-                </div>
-              </div>
-              <h3 className="font-serif text-xl text-[#2C2C2C] mb-1">
-                {uploadStatus || 'Analyzing Wardrobe'}
-              </h3>
-              <p className="text-sm text-gray-500">
-                Extracting features & learning patterns...
-              </p>
-            </motion.div>
-          ) : isComplete ? (
-            <motion.div
-              key="complete"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center py-4"
-            >
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 text-green-600">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h3 className="font-serif text-xl text-[#2C2C2C] mb-1">
-                {uploadStatus || 'Upload Complete!'}
-              </h3>
-              <p className="text-sm text-gray-500">
-                Your wardrobe has been digitized.
-              </p>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="idle"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center py-4"
-            >
-              <div className="w-16 h-16 bg-[#FAF8F5] rounded-full flex items-center justify-center mb-4 text-[#8B5A5A]">
-                <Upload className="w-8 h-8" />
-              </div>
-              <h3 className="font-serif text-xl text-[#2C2C2C] mb-2">
-                {isDragActive ? 'Drop items here' : 'Upload your wardrobe'}
-              </h3>
-              <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6">
-                Drag and drop multiple clothing images here, or click to browse. Our AI will automatically categorize and analyze them all.
-              </p>
-              <button className="px-6 py-2.5 bg-[#2C2C2C] text-white rounded-full text-sm font-medium hover:bg-black transition-colors shadow-lg shadow-gray-200">
-                Select Files (Multiple)
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <AnimatePresence mode="wait">
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-        <div className="p-4 rounded-xl bg-white border border-[#E5E0D8]">
-          <p className="text-xs font-semibold text-[#8B5A5A] uppercase tracking-wider mb-1">
-            Phase 1
-          </p>
-          <p className="text-sm text-[#2C2C2C]">Visual Feature Extraction</p>
-        </div>
-        <div className="p-4 rounded-xl bg-white border border-[#E5E0D8]">
-          <p className="text-xs font-semibold text-[#8B5A5A] uppercase tracking-wider mb-1">
-            Phase 2
-          </p>
-          <p className="text-sm text-[#2C2C2C]">Event Suitability Scoring</p>
-        </div>
-        <div className="p-4 rounded-xl bg-white border border-[#E5E0D8]">
-          <p className="text-xs font-semibold text-[#8B5A5A] uppercase tracking-wider mb-1">
-            Phase 3
-          </p>
-          <p className="text-sm text-[#2C2C2C]">Personal Style Profile</p>
-        </div>
+        {/* ── Uploading state ── */}
+        {isUploading && (
+          <motion.div
+            key="uploading"
+            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="flex items-center gap-3 bg-white border border-[#E5E0D8] rounded-xl px-4 py-3 shadow-sm"
+          >
+            {/* Mini ring */}
+            <div className="relative w-9 h-9 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90">
+                <circle cx="18" cy="18" r="15" stroke="#EDE8E0" strokeWidth="3" fill="none" />
+                <circle cx="18" cy="18" r="15" stroke="#8B5A5A" strokeWidth="3" fill="none"
+                  strokeDasharray="94.25"
+                  strokeDashoffset={94.25 - (94.25 * progress) / 100}
+                  className="transition-all duration-100 ease-linear"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-[#8B5A5A]">{progress}%</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-[#2C2C2C]">{count} of {total} uploaded</p>
+              <p className="text-[11px] text-[#A8A098]">Analyzing with AI…</p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Complete state ── */}
+        {!isUploading && isComplete && (
+          <motion.div
+            key="complete"
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+            className="flex items-center gap-3 bg-white border border-green-200 rounded-xl px-4 py-3 shadow-sm"
+          >
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+            </div>
+            <p className="text-xs font-semibold text-green-700">{total} item{total !== 1 ? 's' : ''} added to wardrobe!</p>
+          </motion.div>
+        )}
+
+        {/* ── Idle state ── */}
+        {!isUploading && !isComplete && (
+          <motion.div
+            key="idle"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex items-center gap-3 bg-white border border-[#E5E0D8] rounded-xl px-4 py-3 shadow-sm"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#F0EBE4] flex items-center justify-center flex-shrink-0">
+              <Upload className="w-3.5 h-3.5 text-[#8B5A5A]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-[#2C2C2C] leading-tight">Add to wardrobe</p>
+              <p className="text-[10px] text-[#B0A098]">JPG · PNG · WEBP · drag anywhere</p>
+            </div>
+            <button
+              onClick={open}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-[#2C2C2C] hover:bg-black text-white text-xs font-semibold rounded-full transition-all active:scale-95 shadow"
+            >
+              <Plus className="w-3 h-3" /> Upload
+            </button>
+          </motion.div>
+        )}
+
+      </AnimatePresence>
+
+      {/* Phase steps */}
+      <div className="flex items-center justify-end gap-2 mt-2 pr-1">
+        {['Visual Extraction', 'Event Scoring', 'Style Profile'].map((label, i) => (
+          <React.Fragment key={label}>
+            <div className="flex items-center gap-1">
+              <span className="w-4 h-4 rounded-full bg-[#E8E4DE] text-[#8B5A5A] text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+              <span className="text-[10px] text-[#A8A098]">{label}</span>
+            </div>
+            {i < 2 && <span className="w-3 h-px bg-[#DDD5CA]" />}
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );
