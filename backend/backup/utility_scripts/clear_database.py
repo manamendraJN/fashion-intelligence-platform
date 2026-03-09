@@ -3,12 +3,13 @@ Clear all data from the database while preserving the schema
 """
 import sqlite3
 import sys
+from pathlib import Path
 
-db_path = 'D:/Github-Projects-Research/fashion-intelligence-platform/backend/database/fashion_db.sqlite'
+db_path = Path(__file__).parent.parent / "database" / "fashion_db.sqlite"
 
 def clear_database():
     """Delete all data from all tables"""
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
     
     print("\n" + "="*80)
