@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, CheckCircle2 } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 
@@ -8,63 +8,31 @@ export function WardrobeUpload({ onUploadComplete }) {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('');
 
-  // Backend-integrated upload handler - SUPPORTS MULTIPLE FILES
-  const onDrop = useCallback(async (acceptedFiles) => {
+  const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
 
     setIsUploading(true);
-    setProgress(0);
-    setUploadStatus(`Uploading ${acceptedFiles.length} item${acceptedFiles.length > 1 ? 's' : ''}...`);
-
-    const totalFiles = acceptedFiles.length;
-    let uploadedCount = 0;
-    const results = [];
-
-    for (const file of acceptedFiles) {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      try {
-        const res = await fetch('http://localhost:5000/api/predict/clothing-type', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json();
-        console.log('Backend result:', data);
-        results.push(data);
-
-        uploadedCount++;
-        setProgress(Math.round((uploadedCount / totalFiles) * 100));
-        setUploadStatus(`Uploaded ${uploadedCount} of ${totalFiles} items...`);
-
-      } catch (err) {
-        console.error("Upload failed for", file.name, ":", err.message);
-        results.push({ success: false, error: err.message, filename: file.name });
+    let currentProgress = 0;
+    const interval = setInterval(() => {
+      currentProgress += 5;
+      setProgress(currentProgress);
+      if (currentProgress >= 100) {
+        clearInterval(interval);
+        setIsUploading(false);
+        setIsComplete(true);
+        setTimeout(() => {
+          onUploadComplete();
+          setIsComplete(false);
+          setProgress(0);
+        }, 1000);
       }
-    }
-
-    setIsUploading(false);
-    setIsComplete(true);
-    setUploadStatus(`✓ Successfully uploaded ${uploadedCount} items!`);
-
-    setTimeout(() => {
-      onUploadComplete(results);
-      setIsComplete(false);
-      setProgress(0);
-      setUploadStatus('');
-    }, 1500);
-
+    }, 100);
   }, [onUploadComplete]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.webp']
-    },
-    multiple: true,
+    accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp'] },
     disabled: isUploading,
   });
 
@@ -118,7 +86,7 @@ export function WardrobeUpload({ onUploadComplete }) {
                 </div>
               </div>
               <h3 className="font-serif text-xl text-[#2C2C2C] mb-1">
-                {uploadStatus || 'Analyzing Wardrobe'}
+                Analyzing Wardrobe
               </h3>
               <p className="text-sm text-gray-500">
                 Extracting features & learning patterns...
@@ -135,7 +103,7 @@ export function WardrobeUpload({ onUploadComplete }) {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="font-serif text-xl text-[#2C2C2C] mb-1">
-                {uploadStatus || 'Upload Complete!'}
+                Analysis Complete
               </h3>
               <p className="text-sm text-gray-500">
                 Your wardrobe has been digitized.
@@ -156,10 +124,11 @@ export function WardrobeUpload({ onUploadComplete }) {
                 {isDragActive ? 'Drop items here' : 'Upload your wardrobe'}
               </h3>
               <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6">
-                Drag and drop multiple clothing images here, or click to browse. Our AI will automatically categorize and analyze them all.
+                Drag and drop your clothing images here, or click to browse. Our
+                AI will automatically categorize and analyze them.
               </p>
               <button className="px-6 py-2.5 bg-[#2C2C2C] text-white rounded-full text-sm font-medium hover:bg-black transition-colors shadow-lg shadow-gray-200">
-                Select Files (Multiple)
+                Select Files
               </button>
             </motion.div>
           )}
