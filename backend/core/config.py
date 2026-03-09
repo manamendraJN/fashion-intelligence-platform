@@ -50,7 +50,7 @@ class Config:
         }
     }
     
-    DEFAULT_MODEL = 'model_v1'  # Change to model_v2 or model_v3 as needed
+    DEFAULT_MODEL = 'model_v3'  # Change to model_v2 or model_v3 as needed
     
     # Image Configuration
     IMG_SIZE = (512, 384)  # height, width
@@ -64,5 +64,12 @@ class Config:
         'shoulder-to-crotch', 'thigh', 'waist', 'wrist'
     ]
        
-    # CORS Configuration
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
+    # CORS Configuration - Allow web frontend and mobile app
+    CORS_ORIGINS = [
+        'http://localhost:3000',      # React web frontend (dev)
+        'http://localhost:5173',      # Vite web frontend (dev)
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://10.0.2.2:5000',       # Android emulator
+        '*'                           # Allow all other origins (mobile tunnel, physical devices)
+    ]
