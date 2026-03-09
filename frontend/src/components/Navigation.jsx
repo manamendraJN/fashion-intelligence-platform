@@ -12,15 +12,6 @@ export function Navigation() {
     { path: '/measurements', label: 'Measurements', icon: Ruler },
     { path: '/size-matching', label: 'Size Matching', icon: Shirt },
     { path: '/admin', label: 'Database', icon: Database },
-import { Sparkles, Upload, MessageSquare, BarChart2 } from 'lucide-react';
-
-export function Navigation() {
-  const location = useLocation();
-
-  const navItems = [
-    { path: '/', label: 'Upload', icon: Upload },
-    { path: '/chat', label: 'Assistant', icon: MessageSquare },
-    { path: '/analytics', label: 'Analytics', icon: BarChart2 }
   ];
 
   return (
@@ -32,7 +23,7 @@ export function Navigation() {
               <Sparkles className="h-5 w-5 text-[#FAF8F5]" />
             </div>
             <span className="font-serif text-xl font-semibold tracking-tight text-[#2C2C2C]">
-              AURA <span className="text-[#8B5A5A]">Style</span>
+              Aura<span className="text-[#8B5A5A]">Style</span>
             </span>
           </div>
 
@@ -40,23 +31,18 @@ export function Navigation() {
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
-              
               return (
                 <Link
                   key={item.path}
                   to={item.path}
                   className={cn(
                     'flex items-center space-x-2 text-sm font-medium transition-colors duration-200',
-                    isActive
-                      ? 'text-[#8B5A5A]'
-                      : 'text-[#6B6B6B] hover:text-[#2C2C2C]'
+                    isActive ? 'text-[#8B5A5A]' : 'text-[#6B6B6B] hover:text-[#2C2C2C]'
                   )}
                 >
                   <Icon className={cn('h-4 w-4', isActive && 'stroke-[2.5px]')} />
                   <span>{item.label}</span>
-                  {isActive && (
-                    <span className="absolute bottom-0 h-0.5 w-full bg-[#8B5A5A]" />
-                  )}
+                  {isActive && <span className="absolute bottom-0 h-0.5 w-full bg-[#8B5A5A]" />}
                 </Link>
               );
             })}
