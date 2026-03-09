@@ -90,6 +90,33 @@ export const apiService = {
     }
   },
 
+  // Upload wardrobe clothing images
+  uploadWardrobeImages: async (imageFiles, onUploadProgress) => {
+    try {
+      const formData = new FormData();
+      imageFiles.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      const response = await api.post('/api/wardrobe/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: onUploadProgress
+          ? (event) => {
+              if (event.total) {
+                onUploadProgress(Math.round((event.loaded * 100) / event.total));
+              }
+            }
+          : undefined,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Wardrobe upload failed:', error);
+      throw error;
+    }
+  },
+
   // Save measurements to database
   saveMeasurements: async (data) => {
     try {

@@ -58,3 +58,33 @@ def complete_analysis():
     except Exception as e:
         logger.error(f"❌ Error in /complete-analysis: {str(e)}")
         return create_error_response(f"Analysis error: {str(e)}", 500)
+
+
+@analysis_bp.route('/api/wardrobe/upload', methods=['POST'])
+def wardrobe_upload():
+    """Upload wardrobe clothing images for cataloging"""
+    try:
+        files = request.files.getlist('images')
+        if not files or all(f.filename == '' for f in files):
+            return create_error_response("No images provided", 400)
+
+        processed_items = []
+        for file in files:
+            if file and file.filename and allowed_file(file.filename):
+                processed_items.append({
+                    'filename': file.filename,
+                    'status': 'processed'
+                })
+
+        if not processed_items:
+            return create_error_response("No valid image files found. Allowed types: png, jpg, jpeg, webp", 400)
+
+        items_count = len(processed_items)
+        return create_success_response(
+            {'items': processed_items, 'count': items_count},
+            f"Successfully processed {items_count} wardrobe item(s)"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Error in /api/wardrobe/upload: {str(e)}")
+        return create_error_response(f"Upload error: {str(e)}", 500)

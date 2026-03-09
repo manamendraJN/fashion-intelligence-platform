@@ -3,31 +3,38 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
+import { apiService } from '../services/api';
 
 export function WardrobeUpload({ onUploadComplete }) {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles) => {
+  const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
 
     setIsUploading(true);
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += 5;
-      setProgress(currentProgress);
-      if (currentProgress >= 100) {
-        clearInterval(interval);
-        setIsUploading(false);
-        setIsComplete(true);
-        setTimeout(() => {
-          onUploadComplete();
-          setIsComplete(false);
-          setProgress(0);
-        }, 1000);
-      }
-    }, 100);
+    setProgress(0);
+
+    try {
+      const result = await apiService.uploadWardrobeImages(
+        acceptedFiles,
+        (pct) => setProgress(pct)
+      );
+
+      setProgress(100);
+      setIsUploading(false);
+      setIsComplete(true);
+      setTimeout(() => {
+        onUploadComplete(result);
+        setIsComplete(false);
+        setProgress(0);
+      }, 1000);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setIsUploading(false);
+      setProgress(0);
+    }
   }, [onUploadComplete]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

@@ -1,7 +1,8 @@
 import sqlite3
+from pathlib import Path
 
-db_path = 'D:/Github-Projects-Research/fashion-intelligence-platform/backend/database/fashion_db.sqlite'
-conn = sqlite3.connect(db_path)
+db_path = Path(__file__).resolve().parents[2] / 'database' / 'fashion_db.sqlite'
+conn = sqlite3.connect(str(db_path))
 cursor = conn.cursor()
 
 # Get brands table schema
