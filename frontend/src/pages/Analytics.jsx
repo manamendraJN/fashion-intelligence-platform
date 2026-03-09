@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
-import { ANALYTICS_DATA } from '../data/mockData';
 import {
   PieChart,
   Pie,
@@ -12,32 +11,78 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  LineChart,
-  Line,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import { Shirt, Calendar, Target, TrendingUp } from 'lucide-react';
+import { Shirt, Calendar, Target, TrendingUp, RefreshCw } from 'lucide-react';
+
+const COLORS = ['#8B5A5A', '#2C2C2C', '#A8A8A8', '#7A9B8E', '#E8E4DE', '#D4AF37'];
 
 export function AnalyticsPage() {
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/analytics');
+      const data = await response.json();
+      setAnalytics(data);
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Loading analytics...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const stats = analytics?.stats || {};
+  const compositionData = analytics?.charts?.composition || [];
+
+  // Add colors to composition data
+  const coloredCompositionData = compositionData.map((item, index) => ({
+    ...item,
+    fill: COLORS[index % COLORS.length]
+  }));
+
   return (
     <Layout>
-      <div className="mb-10">
-        <h1 className="text-3xl font-serif text-[#2C2C2C] mb-2">Wardrobe Analytics</h1>
-        <p className="text-gray-600">Insights into your style patterns and AI learning progress.</p>
+      <div className="mb-10 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-serif text-[#2C2C2C] mb-2">
+            Wardrobe Analytics
+          </h1>
+          <p className="text-gray-600">
+            Insights into your style patterns and AI learning progress.
+          </p>
+        </div>
+        <button
+          onClick={fetchAnalytics}
+          className="flex items-center gap-2 px-4 py-2 bg-[#8B5A5A] text-white rounded-lg hover:bg-[#7A4949] transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         {[
-          { label: 'Total Items', value: '42', icon: Shirt, color: 'bg-[#8B5A5A]' },
-          { label: 'Events Covered', value: '12', icon: Target, color: 'bg-[#2C2C2C]' },
-          { label: 'Avg. Wear/Item', value: '4.5', icon: Calendar, color: 'bg-[#7A9B8E]' },
-          { label: 'AI Accuracy', value: '88%', icon: TrendingUp, color: 'bg-[#A8A8A8]' },
+          { label: 'Total Items', value: stats.totalItems || 0, icon: Shirt, color: 'bg-[#8B5A5A]' },
+          { label: 'Events Covered', value: `${stats.eventsCovered || 0}/${stats.totalEvents || 7}`, icon: Target, color: 'bg-[#2C2C2C]' },
+          { label: 'Avg. Wear/Item', value: (stats.avgWearCount || 0).toFixed(1), icon: Calendar, color: 'bg-[#7A9B8E]' },
+          { label: 'Unworn Items', value: stats.unwornItems || 0, icon: TrendingUp, color: 'bg-[#A8A8A8]' }
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -50,8 +95,12 @@ export function AnalyticsPage() {
               <stat.icon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider">{stat.label}</p>
-              <p className="text-2xl font-serif font-medium text-[#2C2C2C]">{stat.value}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider">
+                {stat.label}
+              </p>
+              <p className="text-2xl font-serif font-medium text-[#2C2C2C]">
+                {stat.value}
+              </p>
             </div>
           </motion.div>
         ))}
@@ -64,123 +113,115 @@ export function AnalyticsPage() {
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white p-8 rounded-2xl border border-[#E5E0D8] shadow-sm"
         >
-          <h3 className="text-lg font-serif mb-6 text-[#2C2C2C]">Wardrobe Composition</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={ANALYTICS_DATA.composition}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {ANALYTICS_DATA.composition.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-6 mt-4">
-            {ANALYTICS_DATA.composition.map((entry) => (
-              <div key={entry.name} className="flex items-center text-xs text-gray-500">
-                <span
-                  className="w-3 h-3 rounded-full mr-2"
-                  style={{ backgroundColor: entry.fill }}
-                />
-                {entry.name}
+          <h3 className="text-lg font-serif mb-6 text-[#2C2C2C]">
+            Wardrobe Composition
+          </h3>
+          
+          {coloredCompositionData.length > 0 ? (
+            <>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={coloredCompositionData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {coloredCompositionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+              <div className="flex flex-wrap justify-center gap-4 mt-4">
+                {coloredCompositionData.map((entry) => (
+                  <div key={entry.name} className="flex items-center text-xs text-gray-500">
+                    <span
+                      className="w-3 h-3 rounded-full mr-2"
+                      style={{ backgroundColor: entry.fill }}
+                    ></span>
+                    {entry.name} ({entry.value})
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">
+              No wardrobe data yet. Upload some items to see composition.
+            </div>
+          )}
         </motion.div>
 
-        {/* Wear Frequency */}
+        {/* Summary Card */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
           className="bg-white p-8 rounded-2xl border border-[#E5E0D8] shadow-sm"
         >
-          <h3 className="text-lg font-serif mb-6 text-[#2C2C2C]">Most Worn Items</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ANALYTICS_DATA.wearFrequency} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E0D8" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                <Tooltip cursor={{ fill: '#FAF8F5' }} />
-                <Bar dataKey="count" fill="#2C2C2C" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
+          <h3 className="text-lg font-serif mb-6 text-[#2C2C2C]">
+            Wardrobe Summary
+          </h3>
+          <div className="space-y-6">
+            <div className="border-b border-[#E5E0D8] pb-4">
+              <p className="text-sm text-gray-500 mb-2">Total Collection</p>
+              <p className="text-4xl font-serif font-medium text-[#2C2C2C]">
+                {stats.totalItems || 0} <span className="text-lg text-gray-400">items</span>
+              </p>
+            </div>
+            
+            <div className="border-b border-[#E5E0D8] pb-4">
+              <p className="text-sm text-gray-500 mb-2">Usage Statistics</p>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Average Wear per Item</span>
+                  <span className="font-semibold text-[#8B5A5A]">
+                    {(stats.avgWearCount || 0).toFixed(1)}×
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Unworn Items</span>
+                  <span className="font-semibold text-orange-500">
+                    {stats.unwornItems || 0}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-        {/* Event Coverage */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white p-8 rounded-2xl border border-[#E5E0D8] shadow-sm"
-        >
-          <h3 className="text-lg font-serif mb-6 text-[#2C2C2C]">Event Suitability Coverage</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={ANALYTICS_DATA.eventCoverage}>
-                <PolarGrid stroke="#E5E0D8" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12, fill: '#6B6B6B' }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                <Radar
-                  name="Coverage"
-                  dataKey="A"
-                  stroke="#8B5A5A"
-                  strokeWidth={2}
-                  fill="#8B5A5A"
-                  fillOpacity={0.2}
-                />
-                <Tooltip />
-              </RadarChart>
-            </ResponsiveContainer>
+            <div>
+              <p className="text-sm text-gray-500 mb-2">Recommendations</p>
+              <div className="space-y-2">
+                {stats.unwornItems > 0 && (
+                  <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <p className="text-xs text-orange-700">
+                      💡 You have {stats.unwornItems} unworn item{stats.unwornItems !== 1 ? 's' : ''}. 
+                      Try incorporating them into your outfits!
+                    </p>
+                  </div>
+                )}
+                {stats.totalItems < 10 && (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-700">
+                      📸 Upload more items to get better recommendations!
+                    </p>
+                  </div>
+                )}
+                {stats.totalItems >= 20 && (
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-700">
+                      ✨ Great wardrobe! You have enough variety for all occasions.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </motion.div>
-
-        {/* Learning Progress */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white p-8 rounded-2xl border border-[#E5E0D8] shadow-sm"
-        >
-          <h3 className="text-lg font-serif mb-6 text-[#2C2C2C]">AI Learning Curve</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={ANALYTICS_DATA.learningProgress}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E0D8" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis
-                  domain={[0, 100]}
-                  tick={{ fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="accuracy"
-                  stroke="#2C2C2C"
-                  strokeWidth={3}
-                  dot={{ fill: '#2C2C2C', strokeWidth: 2 }}
-                  activeDot={{ r: 8 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="text-xs text-center text-gray-500 mt-4">
-            Accuracy improves as you accept/reject recommendations
-          </p>
         </motion.div>
       </div>
     </Layout>
