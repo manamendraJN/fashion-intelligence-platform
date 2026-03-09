@@ -177,11 +177,11 @@ const MeasurementHistory = ({ userIdentifier = 'default' }) => {
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold">
-                    {analytics.changes[selectedMeasurement].value > 0 ? '+' : ''}
+                    {parseFloat(analytics.changes[selectedMeasurement].value) > 0 ? '+' : ''}
                     {analytics.changes[selectedMeasurement].value} cm
                   </p>
                   <p className="text-sm">
-                    ({analytics.changes[selectedMeasurement].percent > 0 ? '+' : ''}
+                    ({parseFloat(analytics.changes[selectedMeasurement].percent) > 0 ? '+' : ''}
                     {analytics.changes[selectedMeasurement].percent}%)
                   </p>
                 </div>

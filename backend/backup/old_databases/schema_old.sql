@@ -179,7 +179,7 @@ JOIN brands b ON sc.brand_id = b.brand_id
 JOIN garment_categories gc ON sc.category_id = gc.category_id
 JOIN sizes s ON sc.chart_id = s.chart_id
 LEFT JOIN size_measurements sm ON s.size_id = sm.size_id
-WHERE sc. is_active = 1
+WHERE sc.is_active = 1
 ORDER BY b.brand_name, gc.category_name, s.size_order, sm.measurement_type;
 
 -- Brand summary view

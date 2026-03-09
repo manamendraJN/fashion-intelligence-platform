@@ -121,9 +121,6 @@ def view_database():
         
         cursor.execute("SELECT COUNT(*) FROM sizes")
         print(f"Total Sizes: {cursor.fetchone()[0]}")
-        
-        cursor.execute("SELECT COUNT(*) FROM size_measurements")
-        print(f"Total Measurements: {cursor.fetchone()[0]}")
     
     print("\n" + "="*80 + "\n")
 
