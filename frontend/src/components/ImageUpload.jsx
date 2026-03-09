@@ -6,11 +6,11 @@ const ImageUpload = ({ label, image, preview, onChange, onRemove }) => {
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-[#2C2C2C]">
         {label}
       </label>
       
-      <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all bg-white">
+      <div className="relative border-2 border-dashed border-[#8B5A5A] rounded-lg p-6 text-center hover:border-[#704848] hover:bg-[#FAF8F5] transition-all bg-white">
         {preview ? (
           <div className="relative">
             <img 
@@ -28,11 +28,11 @@ const ImageUpload = ({ label, image, preview, onChange, onRemove }) => {
           </div>
         ) : (
           <>
-            <div className="mb-3 inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100">
-              <Upload className="w-8 h-8 text-indigo-600" />
+            <div className="mb-3 inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FAF8F5]">
+              <Upload className="w-8 h-8 text-[#8B5A5A]" />
             </div>
-            <p className="text-sm text-gray-600 mb-1 font-medium">Click to upload or drag and drop</p>
-            <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+            <p className="text-sm text-[#2C2C2C] mb-1 font-medium">Click to upload or drag and drop</p>
+            <p className="text-xs text-[#8B5A5A]">PNG, JPG up to 10MB</p>
           </>
         )}
         
@@ -47,7 +47,7 @@ const ImageUpload = ({ label, image, preview, onChange, onRemove }) => {
         {!preview && (
           <label
             htmlFor={inputId}
-            className="mt-4 cursor-pointer bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors inline-block font-medium text-sm shadow-sm"
+            className="mt-4 cursor-pointer bg-[#8B5A5A] text-white px-6 py-2 rounded-lg hover:bg-[#704848] transition-colors inline-block font-medium text-sm shadow-sm"
           >
             Choose File
           </label>
