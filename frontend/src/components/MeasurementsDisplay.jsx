@@ -7,12 +7,12 @@ const MeasurementsDisplay = ({ measurements }) => {
   const measurementEntries = Object.entries(measurements);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+    <div className="bg-white rounded-lg shadow-sm p-6 border border-[#E5E5E5]">
       <div className="flex items-center gap-3 mb-6">
-        <div className="bg-blue-600 p-2.5 rounded-lg">
+        <div className="bg-[#8B5A5A] p-2.5 rounded-lg">
           <Ruler className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">
+        <h2 className="font-serif text-2xl text-[#2C2C2C]">
           Body Measurements
         </h2>
       </div>
@@ -21,12 +21,12 @@ const MeasurementsDisplay = ({ measurements }) => {
         {measurementEntries.map(([key, data]) => (
           <div 
             key={key} 
-            className=" from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100 hover:border-blue-200 hover:shadow-sm transition-all"
+            className="bg-[#FAF8F5] p-4 rounded-lg border border-[#E5E5E5] hover:border-[#8B5A5A] hover:shadow-sm transition-all"
           >
-            <p className="text-xs text-gray-600 uppercase tracking-wide font-medium mb-1.5">
+            <p className="text-xs text-[#8B5A5A] uppercase tracking-wide font-medium mb-1.5">
               {key.replace(/-/g, ' ')}
             </p>
-            <p className="text-2xl font-bold text-blue-700">
+            <p className="text-2xl font-bold text-[#2C2C2C]">
               {data.display || `${data.value?.toFixed(1)} cm`}
             </p>
           </div>
