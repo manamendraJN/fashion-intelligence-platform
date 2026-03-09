@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { UploadPage } from './pages/Upload';
+import { ChatPage } from './pages/Chat';
+import { AnalyticsPage } from './pages/Analytics';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-  <h1 class="text-3xl font-bold text-center underline text-fuchsia-600">
-    Hello world!
-  </h1>
-    </>
+    <Router>
+      <Routes>
+        <Route path="/" element={<UploadPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+      </Routes>
+    </Router>
   );
 }
 
