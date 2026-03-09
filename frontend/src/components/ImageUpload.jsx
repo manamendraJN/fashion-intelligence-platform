@@ -2,7 +2,7 @@ import React from 'react';
 import { Upload, X } from 'lucide-react';
 
 const ImageUpload = ({ label, image, preview, onChange, onRemove }) => {
-  const inputId = `upload-${label.toLowerCase().replace(' ', '-')}`;
+  const inputId = `upload-${label.toLowerCase().replace(/ /g, '-')}`;
 
   return (
     <div className="space-y-2">
