@@ -34,8 +34,8 @@ export function ChatMessage({ role, content, suggestions, timestamp }) {
             className={cn(
               'px-6 py-4 rounded-2xl text-sm leading-relaxed shadow-sm',
               isUser
-                ? 'bg-white text-[#2C2C2C] rounded-tr-none border border-[#E5E0D8]'
-                : 'bg-[#2C2C2C] text-[#FAF8F5] rounded-tl-none'
+                ? 'bg-[#2C2C2C] text-[#FAF8F5] rounded-tr-none'
+                : 'bg-[#F5F0EB] text-[#2C2C2C] rounded-tl-none border border-[#E5E0D8]'
             )}
           >
             {content}
