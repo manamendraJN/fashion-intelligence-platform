@@ -1,6 +1,17 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../lib/utils';
+import { Sparkles, Upload, MessageSquare, BarChart2, Ruler, Shirt, Database } from 'lucide-react';
+
+export function Navigation() {
+  const location = useLocation();
+  const navItems = [
+    { path: '/', label: 'Upload', icon: Upload },
+    { path: '/chat', label: 'Assistant', icon: MessageSquare },
+    { path: '/analytics', label: 'Analytics', icon: BarChart2 },
+    { path: '/measurements', label: 'Measurements', icon: Ruler },
+    { path: '/size-matching', label: 'Size Matching', icon: Shirt },
+    { path: '/admin', label: 'Database', icon: Database },
 import { Sparkles, Upload, MessageSquare, BarChart2 } from 'lucide-react';
 
 export function Navigation() {
