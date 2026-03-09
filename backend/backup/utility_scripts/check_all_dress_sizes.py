@@ -1,9 +1,11 @@
 import sqlite3
 import sys
 import os
+from pathlib import Path
 
-# Get the database path - use the same path as backend
-db_path = 'D:/Github-Projects-Research/fashion-intelligence-platform/backend/database/fashion_db.sqlite'
+# Get the database path - use the same path as backend, relative to this script
+backend_path = Path(__file__).resolve().parents[2]
+db_path = backend_path / "database" / "fashion_db.sqlite"
 
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
