@@ -89,6 +89,48 @@ export const apiService = {
       throw error;
     }
   },
+
+  // Save measurements to database
+  saveMeasurements: async (data) => {
+    try {
+      const response = await api.post('/api/size/measurements/save', data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to save measurements:', error);
+      throw error;
+    }
+  },
+
+  // Get latest measurements
+  getLatestMeasurements: async (userIdentifier = 'default', maxAgeDays = 90) => {
+    try {
+      const response = await api.get('/api/size/measurements/latest', {
+        params: {
+          user_identifier: userIdentifier,
+          max_age_days: maxAgeDays
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get latest measurements:', error);
+      throw error;
+    }
+  },
+
+  // Get measurement history
+  getMeasurementHistory: async (userIdentifier = 'default') => {
+    try {
+      const response = await api.get('/api/size/measurements/history', {
+        params: {
+          user_identifier: userIdentifier
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get measurement history:', error);
+      throw error;
+    }
+  },
 };
 
 export default api;
