@@ -4,5 +4,5 @@ torch
 torchvision
 pandas
 Pillow
-sqlite3
 scikit-learn
+numpy

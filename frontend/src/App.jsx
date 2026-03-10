@@ -1,15 +1,22 @@
-import { useState } from 'react'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { WardrobeProvider } from './context/WardrobeContext';
+import { WardrobePage }  from './pages/AccWardrobe';
+import { DiscoverPage }  from './pages/AccDiscover';
+import { AnalyticsPage } from './pages/AccAnalytics';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-  <h1 class="text-3xl font-bold text-center underline text-fuchsia-600">
-    Hello world!
-  </h1>
-    </>
+    <WardrobeProvider>
+      <Router>
+        <Routes>
+          <Route path="/"          element={<DiscoverPage />} />
+          <Route path="/wardrobe"  element={<WardrobePage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+        </Routes>
+      </Router>
+    </WardrobeProvider>
   );
 }
 
-export default App
+export default App;
