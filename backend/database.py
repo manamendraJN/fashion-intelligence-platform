@@ -36,6 +36,9 @@ def init_database():
             top_5 TEXT,
             event_scores TEXT,
             best_event TEXT,
+            primary_color TEXT,
+            color_rgb TEXT,
+            all_colors TEXT,
             wear_count INTEGER DEFAULT 0,
             last_worn TEXT,
             wear_history TEXT DEFAULT '[]',
@@ -43,6 +46,16 @@ def init_database():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Add color columns if they don't exist (migration)
+    cursor.execute("PRAGMA table_info(wardrobe_items)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'primary_color' not in columns:
+        cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN primary_color TEXT')
+    if 'color_rgb' not in columns:
+        cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN color_rgb TEXT')
+    if 'all_colors' not in columns:
+        cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN all_colors TEXT')
     
     # User profile table
     cursor.execute('''
@@ -78,7 +91,8 @@ def init_database():
     conn.close()
     logger.info("✅ Database initialized successfully")
 
-def add_wardrobe_item(filename, image_path, clothing_type, confidence, top_5, event_scores, best_event):
+def add_wardrobe_item(filename, image_path, clothing_type, confidence, top_5, event_scores, best_event, 
+                      primary_color=None, color_rgb=None, all_colors=None):
     """Add a new wardrobe item to database"""
     conn = get_connection()
     cursor = conn.cursor()
@@ -86,10 +100,10 @@ def add_wardrobe_item(filename, image_path, clothing_type, confidence, top_5, ev
     cursor.execute('''
         INSERT INTO wardrobe_items (
             filename, image_path, clothing_type, confidence, 
-            top_5, event_scores, best_event, wear_count, 
-            last_worn, wear_history, is_favorite, created_at
+            top_5, event_scores, best_event, primary_color, color_rgb, all_colors,
+            wear_count, last_worn, wear_history, is_favorite, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, '[]', 0, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, '[]', 0, ?)
     ''', (
         filename,
         image_path,
@@ -98,6 +112,9 @@ def add_wardrobe_item(filename, image_path, clothing_type, confidence, top_5, ev
         json.dumps(top_5),
         json.dumps(event_scores),
         best_event,
+        primary_color,
+        json.dumps(color_rgb) if color_rgb else None,
+        json.dumps(all_colors) if all_colors else None,
         datetime.now().isoformat()
     ))
     
@@ -132,12 +149,30 @@ def get_all_wardrobe_items():
             if 'is_disliked' in row.keys():
                 is_disliked = bool(row['is_disliked'])
             
+            # Safely get color fields
+            color_rgb = None
+            if 'color_rgb' in row.keys() and row['color_rgb']:
+                try:
+                    color_rgb = json.loads(row['color_rgb'])
+                except:
+                    pass
+            
+            all_colors = []
+            if 'all_colors' in row.keys() and row['all_colors']:
+                try:
+                    all_colors = json.loads(row['all_colors'])
+                except:
+                    pass
+            
             items.append({
                 'id': row['id'],
                 'filename': row['filename'],
                 'url': row['image_path'],
                 'type': row['clothing_type'],
                 'confidence': row['confidence'],
+                'primaryColor': row['primary_color'] if 'primary_color' in row.keys() else None,
+                'colorRgb': color_rgb,
+                'allColors': all_colors,
                 'top5': json.loads(row['top_5']) if row['top_5'] else [],
                 'eventScores': json.loads(row['event_scores']) if row['event_scores'] else {},
                 'bestEvent': row['best_event'],
@@ -178,9 +213,27 @@ def get_wardrobe_item(item_id):
     if 'is_disliked' in row.keys():
         is_disliked = bool(row['is_disliked'])
     
+    # Safely get color fields
+    color_rgb = None
+    if 'color_rgb' in row.keys() and row['color_rgb']:
+        try:
+            color_rgb = json.loads(row['color_rgb'])
+        except:
+            pass
+    
+    all_colors = []
+    if 'all_colors' in row.keys() and row['all_colors']:
+        try:
+            all_colors = json.loads(row['all_colors'])
+        except:
+            pass
+    
     return {
         'id': row['id'],
         'filename': row['filename'],
+        'primaryColor': row['primary_color'] if 'primary_color' in row.keys() else None,
+        'colorRgb': color_rgb,
+        'allColors': all_colors,
         'url': row['image_path'],
         'type': row['clothing_type'],
         'confidence': row['confidence'],
@@ -196,19 +249,22 @@ def get_wardrobe_item(item_id):
     }
 
 def update_item_type(item_id, new_type, event_scores):
-    """Update clothing type and event scores"""
+    """Update clothing type, event scores, and best event"""
     conn = get_connection()
     cursor = conn.cursor()
     
+    # Calculate best event from scores
+    best_event = max(event_scores, key=event_scores.get) if event_scores else "Casual"
+    
     cursor.execute('''
         UPDATE wardrobe_items 
-        SET clothing_type = ?, event_scores = ?
+        SET clothing_type = ?, event_scores = ?, best_event = ?
         WHERE id = ?
-    ''', (new_type, json.dumps(event_scores), item_id))
+    ''', (new_type, json.dumps(event_scores), best_event, item_id))
     
     conn.commit()
     conn.close()
-    logger.info(f"✅ Updated item {item_id} type to: {new_type}")
+    logger.info(f"✅ Updated item {item_id}: type={new_type}, best_event={best_event}")
 
 def toggle_favorite(item_id):
     """Toggle favorite status"""
@@ -379,6 +435,94 @@ def get_analytics():
         'favoriteCount': favorite_count,
         'composition': [{'name': row['clothing_type'], 'value': row['count']} for row in composition]
     }
+
+def get_matching_items(item_id, matching_types, matching_colors):
+    """
+    Find wardrobe items that match with the given item based on type and color
+    
+    Args:
+        item_id: ID of the item to find matches for
+        matching_types: List of clothing types that pair well
+        matching_colors: List of colors that match
+    
+    Returns:
+        List of matching wardrobe items
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Ensure color columns exist
+    cursor.execute("PRAGMA table_info(wardrobe_items)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'primary_color' not in columns:
+        conn.close()
+        return []
+    
+    # Build query to find matching items
+    # Match by clothing type OR by color (flexible matching)
+    placeholders_types = ','.join(['?'] * len(matching_types))
+    placeholders_colors = ','.join(['?'] * len(matching_colors))
+    
+    query = f'''
+        SELECT * FROM wardrobe_items 
+        WHERE id != ? 
+        AND (
+            clothing_type IN ({placeholders_types})
+            OR primary_color IN ({placeholders_colors})
+        )
+        ORDER BY 
+            CASE WHEN clothing_type IN ({placeholders_types}) THEN 1 ELSE 2 END,
+            wear_count DESC
+        LIMIT 20
+    '''
+    
+    params = [item_id] + matching_types + matching_colors + matching_types
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    matches = []
+    for row in rows:
+        try:
+            # Check if is_disliked column exists
+            is_disliked = False
+            if 'is_disliked' in row.keys():
+                is_disliked = bool(row['is_disliked'])
+            
+            match_reason = []
+            if row['clothing_type'] in matching_types:
+                match_reason.append(f"Type: {row['clothing_type']}")
+            if row['primary_color'] and row['primary_color'] in matching_colors:
+                match_reason.append(f"Color: {row['primary_color']}")
+            
+            # Safely get color RGB
+            color_rgb = None
+            if 'color_rgb' in row.keys() and row['color_rgb']:
+                try:
+                    color_rgb = json.loads(row['color_rgb'])
+                except:
+                    pass
+            
+            matches.append({
+                'id': row['id'],
+                'filename': row['filename'],
+                'url': row['image_path'],
+                'type': row['clothing_type'],
+                'confidence': row['confidence'],
+                'primaryColor': row['primary_color'] if 'primary_color' in row.keys() else None,
+                'colorRgb': color_rgb,
+                'bestEvent': row['best_event'],
+                'wearCount': row['wear_count'],
+                'isFavorite': bool(row['is_favorite']),
+                'isDisliked': is_disliked,
+                'matchReason': ' | '.join(match_reason),
+                'uploadDate': row['created_at']
+            })
+        except Exception as e:
+            logger.error(f"Error processing matching item {row['id']}: {e}")
+            continue
+    
+    return matches
 
 # Initialize database on module import
 init_database()

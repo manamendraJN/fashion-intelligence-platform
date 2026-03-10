@@ -16,6 +16,7 @@ from tensorflow import keras
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from core.event_constants import get_default_event_scores, STANDARD_EVENTS
+from utils.color_utils import extract_dominant_color
 
 logger = logging.getLogger(__name__)
 
@@ -294,13 +295,24 @@ class WardrobeModelService:
     # ─────────────────────────── Full Analysis ──────────────────────
 
     def full_analysis(self, image_input, metadata: dict = None) -> dict:
-        """Run clothing classification + event scoring in one call."""
+        """Run clothing classification + event scoring + color extraction in one call."""
         clothing = self.predict_clothing(image_input)
+        
+        # Extract color from image
+        try:
+            color_data = extract_dominant_color(image_input, n_colors=3)
+        except Exception as e:
+            logger.error(f"Color extraction failed: {e}")
+            color_data = {
+                "primary_color": "Unknown",
+                "rgb": [0, 0, 0],
+                "all_colors": []
+            }
 
         if metadata is None:
             metadata = {
                 'article': clothing['clothing_type'],
-                'color':   'Black',
+                'color':   color_data['primary_color'],
                 'usage':   'Casual',
                 'gender':  'Women'
             }
@@ -314,6 +326,9 @@ class WardrobeModelService:
             "all_scores":     clothing['all_scores'],
             "best_event":     events['best_event'],
             "event_scores":   events['scores'],
+            "primary_color":  color_data['primary_color'],
+            "color_rgb":      color_data['rgb'],
+            "all_colors":     color_data['all_colors'],
             "metadata_used":  metadata
         }
 

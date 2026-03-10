@@ -1,6 +1,15 @@
 """
 routes/wardrobe_routes.py
-All wardrobe AI endpoints — image upload, event scoring, recommendations.
+All wardrobe AI endpoints.
+
+THRESHOLD: 0.60
+  Items scoring below 0.60 for a requested occasion are NEVER shown.
+  This is critical — it's what keeps blazers out of Family Gathering,
+  T-shirts out of Office, etc.
+
+FUNERAL COLOUR FILTER:
+  After the score filter, Funeral recommendations are additionally
+  filtered to keep only dark/neutral coloured items.
 """
 
 from flask import Blueprint, request, jsonify, send_from_directory
@@ -10,23 +19,20 @@ import os
 from PIL import Image
 from werkzeug.utils import secure_filename
 from pathlib import Path
+import time
 
-# Import database functions
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 import database
 
-# Import event constants for flexible matching
 from core.event_constants import normalize_event_name, find_event_score, get_default_event_scores
+from utils.color_utils import get_complementary_items, are_colors_compatible
 
 logger = logging.getLogger(__name__)
 
 wardrobe_bp = Blueprint('wardrobe', __name__)
-
-# Will be injected from app.py
 _wardrobe_service = None
 
-# Upload folder configuration
 UPLOAD_FOLDER = Path(__file__).parent.parent / 'uploads'
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
@@ -35,16 +41,74 @@ def init_wardrobe_routes(wardrobe_service):
     _wardrobe_service = wardrobe_service
 
 
-# ─────────────────────────── Frontend API Routes ─────────────────────
+# ─────────────────────────── Threshold ───────────────────────────────
+# Items below this score for the requested occasion are NEVER recommended.
+RECOMMEND_THRESHOLD = 0.60
 
+
+# ─────────────────────────── Weather Boost ───────────────────────────
+WEATHER_BOOST = {
+    "hot": {
+        "boost":    ["Tank Top", "Shorts", "Sundress", "Mini Skirt", "Crop Top",
+                     "Swimwear", "Denim Shorts", "Casual Dress"],
+        "penalise": ["Puffer Jacket", "Sweaters", "Hoodies", "Formal Coat",
+                     "Leather Jacket", "Cardigan"],
+    },
+    "cold": {
+        "boost":    ["Sweaters", "Hoodies", "Cardigan", "Puffer Jacket", "Blazers",
+                     "Jackets", "Leather Jacket", "Formal Coat"],
+        "penalise": ["Shorts", "Denim Shorts", "Tank Top", "Crop Top", "Swimwear", "Sundress"],
+    },
+    "rainy": {
+        "boost":    ["Jackets", "Puffer Jacket", "Blazers", "Sweaters", "Hoodies",
+                     "Formal Coat", "Leggings", "Trousers"],
+        "penalise": ["Shorts", "Denim Shorts", "Sundress", "Swimwear", "Tank Top"],
+    },
+}
+
+def apply_weather_adjustment(item, weather):
+    if not weather:
+        return item
+    rules = WEATHER_BOOST.get(weather.lower())
+    if not rules:
+        return item
+    item_type = item.get("type", "")
+    score = item.get("recommendationScore", 0)
+    if any(bt.lower() in item_type.lower() for bt in rules["boost"]):
+        score = min(1.0, score + 0.10)
+    elif any(pt.lower() in item_type.lower() for pt in rules["penalise"]):
+        score = max(0.0, score - 0.20)
+    item["recommendationScore"] = score
+    item["suitabilityScore"]    = score
+    return item
+
+
+# ─────────────────────────── Funeral Colour Filter ───────────────────
+# For funerals we ONLY show dark / neutral coloured items.
+FUNERAL_OK_COLORS = {
+    "black", "dark gray", "gray", "charcoal", "navy", "dark blue",
+    "dark navy", "dark grey", "charcoal gray", "white", "cream",
+    "off white", "light gray", "light grey", "dark purple", "burgundy",
+    "dark red", "dark brown", "dark green",
+}
+
+def is_funeral_appropriate(item):
+    """Returns True if item colour is suitable for a funeral."""
+    color = (item.get("primaryColor") or "").lower().strip()
+    if not color or color == "unknown":
+        return True   # if we don't know the colour, include it
+    return any(fc in color for fc in FUNERAL_OK_COLORS)
+
+
+# ─────────────────────────── Serve uploads ───────────────────────────
 @wardrobe_bp.route('/uploads/<path:filename>')
 def serve_upload(filename):
-    """Serve uploaded images"""
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+
+# ─────────────────────────── Wardrobe CRUD ───────────────────────────
 @wardrobe_bp.route('/api/wardrobe', methods=['GET'])
 def get_all_items():
-    """Get all wardrobe items from database"""
     try:
         items = database.get_all_wardrobe_items()
         return jsonify(items), 200
@@ -52,572 +116,452 @@ def get_all_items():
         logger.error(f"Error fetching wardrobe: {e}", exc_info=True)
         return jsonify({"error": str(e), "items": []}), 500
 
+
 @wardrobe_bp.route('/api/predict/clothing-type', methods=['POST'])
 def predict_and_save_clothing():
-    """
-    Upload image, predict clothing type, save to database
-    """
     if 'image' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
-
     file = request.files['image']
     if file.filename == '':
         return jsonify({"error": "Empty filename"}), 400
-
     try:
-        # Save uploaded image
-        filename = secure_filename(file.filename)
-        timestamp = int(os.path.getmtime(__file__) * 1000) if os.path.exists(__file__) else 0
-        unique_filename = f"{timestamp}_{filename}"
-        filepath = UPLOAD_FOLDER / unique_filename
+        filename        = secure_filename(file.filename)
+        unique_filename = f"{int(time.time() * 1000)}_{filename}"
+        filepath        = UPLOAD_FOLDER / unique_filename
         file.save(filepath)
-
-        # Read image for prediction
         img = Image.open(filepath)
 
-        # Get predictions from wardrobe service
         if _wardrobe_service:
-            result = _wardrobe_service.full_analysis(img, None)
-            
+            result        = _wardrobe_service.full_analysis(img, None)
             clothing_type = result["clothing_type"]
-            confidence = result["confidence"]
-            top_5 = result["top_5"]
-            event_scores = result["event_scores"]
-            best_event = result["best_event"]
+            confidence    = result["confidence"]
+            top_5         = result["top_5"]
+            event_scores  = result["event_scores"]
+            best_event    = result["best_event"]
+            primary_color = result.get("primary_color", "Unknown")
+            color_rgb     = result.get("color_rgb", [0, 0, 0])
+            all_colors    = result.get("all_colors", [])
         else:
-            # Fallback if service not available
             clothing_type = "Unknown"
-            confidence = 0.0
-            top_5 = []
-            event_scores = {}
-            best_event = "Casual"
+            confidence    = 0.0
+            top_5         = []
+            event_scores  = get_default_event_scores("Unknown")
+            best_event    = "Casual"
+            primary_color = "Unknown"
+            color_rgb     = [0, 0, 0]
+            all_colors    = []
 
-        # Save to database
         image_path = f"/uploads/{unique_filename}"
         item_id = database.add_wardrobe_item(
-            filename=filename,
-            image_path=image_path,
-            clothing_type=clothing_type,
-            confidence=confidence,
-            top_5=top_5,
-            event_scores=event_scores,
-            best_event=best_event
+            filename=filename, image_path=image_path,
+            clothing_type=clothing_type, confidence=confidence, top_5=top_5,
+            event_scores=event_scores, best_event=best_event,
+            primary_color=primary_color, color_rgb=color_rgb, all_colors=all_colors
         )
-
         return jsonify({
-            "success": True,
-            "id": item_id,
-            "filename": filename,
-            "url": image_path,
-            "type": clothing_type,
-            "confidence": confidence,
-            "top5": top_5,
-            "eventScores": event_scores,
-            "bestEvent": best_event
+            "success": True, "id": item_id, "filename": filename,
+            "url": image_path, "type": clothing_type, "confidence": confidence,
+            "primaryColor": primary_color, "colorRgb": color_rgb,
+            "allColors": all_colors, "top5": top_5,
+            "eventScores": event_scores, "bestEvent": best_event
         }), 200
-
     except Exception as e:
         logger.error(f"Upload error: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @wardrobe_bp.route('/api/wardrobe/<int:item_id>/favorite', methods=['POST'])
 def toggle_favorite_item(item_id):
-    """Toggle favorite status"""
     try:
-        is_favorite = database.toggle_favorite(item_id)
-        return jsonify({"success": True, "isFavorite": is_favorite}), 200
+        return jsonify({"success": True, "isFavorite": database.toggle_favorite(item_id)}), 200
     except Exception as e:
-        logger.error(f"Toggle favorite error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @wardrobe_bp.route('/api/wardrobe/<int:item_id>/dislike', methods=['POST'])
 def toggle_dislike_item(item_id):
-    """Toggle dislike status"""
     try:
-        is_disliked = database.toggle_dislike(item_id)
-        return jsonify({"success": True, "isDisliked": is_disliked}), 200
+        return jsonify({"success": True, "isDisliked": database.toggle_dislike(item_id)}), 200
     except Exception as e:
-        logger.error(f"Toggle dislike error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @wardrobe_bp.route('/api/wardrobe/<int:item_id>/mark-worn', methods=['POST'])
 def mark_worn_item(item_id):
-    """Mark item as worn"""
     try:
-        data = request.get_json() or {}
-        occasion = data.get('occasion', 'General')
-        date = data.get('date')
-        
-        success = database.mark_item_worn(item_id, occasion, date)
-        
-        if success:
-            return jsonify({"success": True}), 200
-        else:
-            return jsonify({"error": "Item not found"}), 404
+        data    = request.get_json() or {}
+        success = database.mark_item_worn(item_id, data.get('occasion', 'General'), data.get('date'))
+        return (jsonify({"success": True}) if success
+                else jsonify({"error": "Item not found"})), (200 if success else 404)
     except Exception as e:
-        logger.error(f"Mark worn error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @wardrobe_bp.route('/api/wardrobe/<int:item_id>/update-type', methods=['POST'])
 def update_item_clothing_type(item_id):
-    """Update clothing type and recalculate event scores based on clothing type"""
     try:
-        data = request.get_json()
+        data     = request.get_json()
         new_type = data.get('type')
-        
         if not new_type:
             return jsonify({"error": "Type is required"}), 400
-        
-        # Get proper event scores based on clothing type
         event_scores = get_default_event_scores(new_type)
-        
-        logger.info(f"Updating item {item_id} type to '{new_type}' with recalculated scores")
-        
         database.update_item_type(item_id, new_type, event_scores)
-        
-        return jsonify({
-            "success": True,
-            "type": new_type,
-            "eventScores": event_scores
-        }), 200
+        return jsonify({"success": True, "type": new_type, "eventScores": event_scores}), 200
     except Exception as e:
         logger.error(f"Update type error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @wardrobe_bp.route('/api/wardrobe/<int:item_id>', methods=['DELETE'])
 def delete_wardrobe_item(item_id):
-    """Delete a wardrobe item"""
     try:
-        # Get item to delete image file
         item = database.get_wardrobe_item(item_id)
-        
         if item:
-            # Delete from database
             database.delete_item(item_id)
-            
-            # Delete image file
-            image_path = UPLOAD_FOLDER / item['url'].replace('/uploads/', '')
-            if image_path.exists():
-                image_path.unlink()
-        
+            img_path = UPLOAD_FOLDER / item['url'].replace('/uploads/', '')
+            if img_path.exists():
+                img_path.unlink()
         return jsonify({"success": True}), 200
     except Exception as e:
-        logger.error(f"Delete error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @wardrobe_bp.route('/api/wardrobe/recalculate-all', methods=['POST'])
 def recalculate_all_event_scores():
-    """Recalculate event scores for all items using current rules"""
+    """
+    RE-SCORES every item in the database with the latest event_constants rules.
+    MUST be called after deploying updated event_constants.py so that existing
+    items get corrected scores.  Without this, old items keep their stale scores.
+    """
     try:
-        all_items = database.get_all_wardrobe_items()
+        all_items     = database.get_all_wardrobe_items()
         updated_count = 0
-        
         for item in all_items:
-            item_id = item['id']
-            clothing_type = item.get('type', 'Unknown')
-            
-            # Get updated event scores based on clothing type
-            new_event_scores = get_default_event_scores(clothing_type)
-            
-            # Update the item in database
-            database.update_item_type(item_id, clothing_type, new_event_scores)
+            new_scores = get_default_event_scores(item.get('type', 'Unknown'))
+            database.update_item_type(item['id'], item.get('type', 'Unknown'), new_scores)
             updated_count += 1
-        
-        logger.info(f"✅ Recalculated event scores for {updated_count} items")
-        
-        return jsonify({
-            "success": True,
-            "message": f"Updated {updated_count} items with new event scores",
-            "updated_count": updated_count
-        }), 200
+        logger.info(f"Recalculated scores for {updated_count} items")
+        return jsonify({"success": True, "updated_count": updated_count}), 200
     except Exception as e:
         logger.error(f"Recalculate all error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @wardrobe_bp.route('/api/analytics', methods=['GET'])
 def get_analytics():
-    """Get wardrobe analytics"""
     try:
         analytics = database.get_analytics()
-        
-        # Format for frontend
-        response = {
+        return jsonify({
             "stats": {
-                "totalItems": analytics['totalItems'],
-                "unwornItems": analytics['unwornItems'],
-                "avgWearCount": analytics['avgWearCount'],
-                "eventsCovered": 5,  # Placeholder
-                "totalEvents": 7
+                "totalItems":    analytics['totalItems'],
+                "unwornItems":   analytics['unwornItems'],
+                "avgWearCount":  analytics['avgWearCount'],
+                "eventsCovered": 5, "totalEvents": 7
             },
             "notifications": [],
             "charts": {
                 "composition": [
-                    {"name": item['name'], "value": item['value'], "fill": "#8B5A5A"}
-                    for item in analytics['composition']
+                    {"name": i['name'], "value": i['value'], "fill": "#8B5A5A"}
+                    for i in analytics['composition']
                 ]
             }
-        }
-        
-        return jsonify(response), 200
+        }), 200
     except Exception as e:
-        logger.error(f"Analytics error: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+# ─────────────────────────── Smart Recommendations ───────────────────
 @wardrobe_bp.route('/api/recommend-smart', methods=['POST'])
 def recommend_smart():
-    """Smart recommendations considering wear history with flexible event matching"""
+    """
+    Core recommendation engine.
+
+    Steps:
+    1. Normalise occasion name
+    2. Filter by score >= RECOMMEND_THRESHOLD (0.60)
+    3. For Funeral: additionally filter by colour (dark/neutral only)
+    4. Apply wear-history penalty and recency penalty
+    5. Apply weather boost/penalise
+    6. Return top 8 sorted by final score
+
+    IMPORTANT: The threshold (0.60) is what prevents blazers showing for
+    Family Gathering, T-shirts for Office Meeting, etc.
+    """
     try:
-        from datetime import datetime, timedelta
-        
-        data = request.get_json() or {}
+        from datetime import datetime
+
+        data         = request.get_json() or {}
         raw_occasion = data.get('occasion', 'Casual')
-        weather = data.get('weather')
-        
-        # Normalize the occasion name to handle variations
+        weather      = data.get('weather')
+
         occasion = normalize_event_name(raw_occasion)
-        logger.info(f"Recommending for occasion: '{raw_occasion}' -> '{occasion}'")
-        
-        # Get all items
-        all_items = database.get_all_wardrobe_items()
-        
-        # Filter by occasion (using flexible event score matching)
+        logger.info(f"[recommend-smart] '{raw_occasion}' → '{occasion}' | weather={weather}")
+
+        all_items       = database.get_all_wardrobe_items()
         recommendations = []
-        recently_worn = []
-        
+        skipped_recent  = []
+
         for item in all_items:
+            # Skip disliked items
+            if item.get('isDisliked'):
+                continue
+
             event_scores = item.get('eventScores', {})
-            
-            # Use flexible matching to find score
-            score = find_event_score(event_scores, occasion)
-            
-            if score > 0.5:
-                # Check if recently worn (within last 7 days)
-                last_worn = item.get('lastWorn')
-                is_recent = False
-                days_since_worn = 0
-                
-                if last_worn:
+            score        = find_event_score(event_scores, occasion)
+
+            # ── SCORE GATE ──────────────────────────────────────────────
+            # This is the key filter.  Items with score < 0.60 are NEVER shown.
+            if score < RECOMMEND_THRESHOLD:
+                continue
+
+            # ── FUNERAL COLOUR GATE ─────────────────────────────────────
+            if occasion == "Funeral" and not is_funeral_appropriate(item):
+                continue
+
+            # ── RECENCY PENALTY ─────────────────────────────────────────
+            last_worn       = item.get('lastWorn')
+            is_recent       = False
+            days_since_worn = 0
+
+            if last_worn:
+                try:
+                    lw_str = last_worn.replace('Z', '+00:00') if isinstance(last_worn, str) else ''
                     try:
-                        # Handle various datetime formats
-                        if isinstance(last_worn, str):
-                            # Remove 'Z' and replace with proper timezone
-                            last_worn_str = last_worn.replace('Z', '+00:00')
-                            # Try parsing with timezone
-                            try:
-                                last_worn_date = datetime.fromisoformat(last_worn_str)
-                            except:
-                                # Fallback: try without timezone
-                                last_worn_date = datetime.fromisoformat(last_worn.split('T')[0])
-                        else:
-                            last_worn_date = last_worn
-                        
-                        # Make datetime naive for comparison
-                        if last_worn_date.tzinfo:
-                            last_worn_date = last_worn_date.replace(tzinfo=None)
-                        
-                        days_since_worn = (datetime.now() - last_worn_date).days
-                        is_recent = days_since_worn < 7
-                    except Exception as e:
-                        logger.warning(f"Could not parse lastWorn date for item {item.get('id')}: {e}")
-                        is_recent = False
-                
-                # Calculate recommendation score
-                wear_count = item.get('wearCount', 0)
-                wear_penalty = wear_count * 0.05
-                recency_penalty = 0.3 if is_recent else 0.0
-                final_score = max(0, score - wear_penalty - recency_penalty)
-                
-                # Add reason for recommendation
-                if wear_count == 0:
-                    reason = "Never worn - perfect to try!"
-                elif is_recent and days_since_worn > 0:
-                    reason = f"Worn recently ({days_since_worn} days ago)"
-                elif wear_count < 3:
-                    reason = "Lightly worn, great choice"
-                else:
-                    reason = f"Worn {wear_count} times"
-                
-                recommendations.append({
-                    **item,
-                    'recommendationScore': final_score,
-                    'reason': reason
-                })
-                
-                if is_recent:
-                    recently_worn.append(item)
-        
-        # Sort by recommendation score
-        recommendations.sort(key=lambda x: x.get('recommendationScore', 0), reverse=True)
-        
-        # Take top 8
+                        lw_date = datetime.fromisoformat(lw_str)
+                    except Exception:
+                        lw_date = datetime.fromisoformat(last_worn.split('T')[0])
+                    if lw_date.tzinfo:
+                        lw_date = lw_date.replace(tzinfo=None)
+                    days_since_worn = (datetime.now() - lw_date).days
+                    is_recent       = days_since_worn < 7
+                except Exception as ex:
+                    logger.warning(f"Could not parse lastWorn for item {item.get('id')}: {ex}")
+
+            wear_count      = item.get('wearCount', 0)
+            wear_penalty    = wear_count * 0.04
+            recency_penalty = 0.25 if is_recent else 0.0
+            final_score     = max(0, score - wear_penalty - recency_penalty)
+
+            # ── REASON TEXT ─────────────────────────────────────────────
+            if wear_count == 0:
+                reason = "Never worn — perfect to try!"
+            elif is_recent:
+                reason = f"Worn recently ({days_since_worn}d ago)"
+            elif wear_count < 3:
+                reason = "Lightly worn, great choice"
+            else:
+                reason = f"Worn {wear_count}× — a reliable pick"
+
+            item_copy = {
+                **item,
+                "recommendationScore": final_score,
+                "suitabilityScore":    final_score,
+                "reason":              reason,
+            }
+            item_copy = apply_weather_adjustment(item_copy, weather)
+            recommendations.append(item_copy)
+
+            if is_recent:
+                skipped_recent.append(item)
+
+        # Sort best first
+        recommendations.sort(key=lambda x: x.get("recommendationScore", 0), reverse=True)
         top_recommendations = recommendations[:8]
-        
-        # Build message
-        if len(top_recommendations) == 0:
-            message = f"No items found suitable for {occasion}. Try uploading more clothes!"
+
+        if not top_recommendations:
+            message = (
+                f"No items found for {occasion}. "
+                "Try uploading more clothes or tap 'Recalculate All Scores' in Settings "
+                "to refresh your wardrobe data."
+            )
         else:
-            message = f"Found {len(top_recommendations)} items perfect for {occasion}"
-            if len(recently_worn) > 0:
-                message += f" (Excluded {len(recently_worn)} recently worn items)"
-        
+            message = f"Found {len(top_recommendations)} items suitable for {occasion}"
+            if skipped_recent:
+                message += f" · skipped {len(skipped_recent)} recently worn"
+
         return jsonify({
-            "success": True,
+            "success":         True,
             "recommendations": top_recommendations,
-            "recentlyWorn": [{'id': item['id'], 'type': item.get('type')} for item in recently_worn],
-            "message": message
+            "recentlyWorn":    [{"id": i["id"], "type": i.get("type")} for i in skipped_recent],
+            "message":         message,
         }), 200
+
     except Exception as e:
         logger.error(f"Smart recommendation error: {e}", exc_info=True)
         return jsonify({"error": str(e), "success": False}), 500
 
-@wardrobe_bp.route('/api/user-profile', methods=['GET'])
-def get_user_profile():
-    """Get user profile"""
-    try:
-        profile = database.get_user_profile()
-        analytics = database.get_analytics()
-        
-        if profile:
-            response = {
-                "success": True,
-                "profile": {
-                    **profile,
-                    "favoriteCount": analytics.get('favoriteCount', 0),
-                    "stylePersonality": "Developing" if profile['totalInteractions'] < 10 else "Established"
-                }
-            }
-            return jsonify(response), 200
-        else:
-            return jsonify({"error": "Profile not found"}), 404
-    except Exception as e:
-        logger.error(f"Profile error: {e}")
-        return jsonify({"error": str(e)}), 500
 
+# ─────────────────────────── Outfit Pairing ──────────────────────────
 @wardrobe_bp.route('/api/outfit-pairing/<int:item_id>', methods=['GET'])
 def get_outfit_pairing(item_id):
-    """Find matching items for outfit pairing"""
     try:
+        from utils.color_utils import get_event_based_pairing
+
         item = database.get_wardrobe_item(item_id)
-        
         if not item:
             return jsonify({"error": "Item not found"}), 404
-        
-        # Get all other items
-        all_items = database.get_all_wardrobe_items()
-        
-        # Enhanced pairing logic - pair tops with bottoms only
-        matches = []
-        item_type = item.get('type', '').lower()
-        
-        # Define clothing categories
-        tops = ['top', 'blouse', 'shirt', 't-shirt', 'tshirt', 'tank top', 'polo', 'sweater', 'hoodie', 'sweatshirt', 'cardigan', 'jacket', 'coat', 'blazer']
-        bottoms = ['jean', 'trouser', 'pant', 'slack', 'skirt', 'short', 'legging', 'track pant']
-        complete_outfits = ['dress', 'saree', 'sari', 'lehenga', 'jumpsuit', 'kurta', 'kurti', 'salwar', 'sherwani']
-        
-        # Don't pair complete outfits
-        if any(complete in item_type for complete in complete_outfits):
-            return jsonify({
-                "success": False,
-                "matches": [],
-                "pairingCategory": "Complete Outfit",
-                "message": f"{item.get('type')} is a complete outfit and doesn't need pairing"
-            }), 200
-        
-        # Determine if item is top or bottom
-        is_top = any(top_word in item_type for top_word in tops)
-        is_bottom = any(bottom_word in item_type for bottom_word in bottoms)
-        
-        for other_item in all_items:
-            if other_item['id'] == item_id:
-                continue
-            
-            other_type = other_item.get('type', '').lower()
-            
-            # Skip complete outfits
-            if any(complete in other_type for complete in complete_outfits):
-                continue
-            
-            # Pair tops with bottoms
-            if is_top:
-                if any(bottom_word in other_type for bottom_word in bottoms):
-                    matches.append(other_item)
-            elif is_bottom:
-                if any(top_word in other_type for top_word in tops):
-                    matches.append(other_item)
-        
-        # Return results
-        pairing_type = "Bottoms" if is_top else "Tops" if is_bottom else "Items"
-        
+
+        item_type  = item.get('type', 'Unknown')
+        item_color = item.get('primaryColor', 'Unknown')
+        event_type = request.args.get('event_type') or "casual"
+
+        recommendations  = get_event_based_pairing(item_type, item_color, event_type)
+        matching_types   = recommendations['matching_types']
+        matching_colors  = recommendations['matching_colors']
+        avoid_types      = recommendations.get('avoid_types', [])
+        pairing_note     = recommendations.get('pairing_note', '')
+        pairing_category = recommendations.get('pairing_category', '')
+
+        matches     = database.get_matching_items(item_id, matching_types, matching_colors)
+        avoid_lower = [a.lower() for a in avoid_types]
+        matches     = [
+            m for m in matches
+            if not any(
+                a in m.get('type', '').lower() or m.get('type', '').lower() in a
+                for a in avoid_lower
+            )
+        ]
+
+        matching_types_lower  = [t.lower() for t in matching_types]
+        matching_colors_lower = [c.lower() for c in matching_colors]
+        enhanced_matches      = []
+
+        for match in matches:
+            match_type  = match.get('type', '')
+            match_color = (match.get('primaryColor') or 'Unknown').lower()
+
+            compatibility_score = 0
+            reasons = []
+
+            type_matched = any(
+                t in match_type.lower() or match_type.lower() in t
+                for t in matching_types_lower
+            )
+            if type_matched:
+                compatibility_score += 80
+                reasons.append(f"{match_type} pairs with {item_type}")
+
+            color_ok = (
+                match_color in matching_colors_lower
+                or are_colors_compatible(item_color, match.get('primaryColor', 'Unknown'))
+            )
+            if color_ok:
+                compatibility_score += 20
+                reasons.append(f"{match.get('primaryColor', '?')} matches {item_color}")
+
+            if compatibility_score > 0:
+                match['matchScore']         = compatibility_score
+                match['compatibilityScore'] = compatibility_score
+                match['reasons']            = reasons
+                enhanced_matches.append(match)
+
+        enhanced_matches.sort(key=lambda x: x['matchScore'], reverse=True)
+
+        message = f"Found {len(enhanced_matches)} items that pair well with your {item_color} {item_type}"
+        if event_type and event_type != "casual":
+            message += f" for {event_type}"
+
         return jsonify({
-            "success": True,
-            "matches": matches[:8],  # Limit to 8 matches
-            "pairingCategory": pairing_type,
-            "message": f"Found {len(matches)} matching {pairing_type.lower()} to pair with your {item.get('type')}"
+            "success":         True,
+            "item":            {"id": item["id"], "type": item_type, "color": item_color, "url": item["url"]},
+            "matches":         enhanced_matches[:10],
+            "matchingTypes":   matching_types,
+            "matchingColors":  matching_colors,
+            "avoidTypes":      avoid_types,
+            "pairingNote":     pairing_note,
+            "pairingCategory": pairing_category,
+            "eventType":       event_type,
+            "message":         message,
         }), 200
+
     except Exception as e:
-        logger.error(f"Pairing error: {e}")
+        logger.error(f"Pairing error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
-# ─────────────────────────── Health ─────────────────────────────────
-
+# ─────────────────────────── Health / Misc ───────────────────────────
 @wardrobe_bp.route('/api/wardrobe/health', methods=['GET'])
 def wardrobe_health():
-    """Check if wardrobe models are loaded."""
     loaded = _wardrobe_service is not None and _wardrobe_service._loaded
     return jsonify({
-        "status":  "ready" if loaded else "not_loaded",
-        "models":  ["CNN", "EventModel", "GRU", "LSTM"] if loaded else []
+        "status": "ready" if loaded else "not_loaded",
+        "models": ["CNN", "EventModel", "GRU", "LSTM"] if loaded else [],
     }), 200 if loaded else 503
 
 
-# ─────────────────────────── Clothing Detection ──────────────────────
-
 @wardrobe_bp.route('/api/wardrobe/classify', methods=['POST'])
 def classify_clothing():
-    """
-    POST /api/wardrobe/classify
-    Body: multipart/form-data  →  image file
-    Returns: clothing type + confidence
-    """
     if 'image' not in request.files:
-        return jsonify({"error": "No image file provided. Use key 'image'"}), 400
-
-    file = request.files['image']
-    if file.filename == '':
-        return jsonify({"error": "Empty filename"}), 400
-
+        return jsonify({"error": "No image file. Use key 'image'"}), 400
     try:
-        img_bytes = file.read()
-        img = Image.open(io.BytesIO(img_bytes))
-
+        img    = Image.open(io.BytesIO(request.files['image'].read()))
         result = _wardrobe_service.predict_clothing(img)
-
-        return jsonify({
-            "success":        True,
-            "clothing_type":  result["clothing_type"],
-            "confidence":     result["confidence"],
-            "all_scores":     result["all_scores"]
-        }), 200
-
+        return jsonify({"success": True, "clothing_type": result["clothing_type"],
+                        "confidence": result["confidence"], "all_scores": result["all_scores"]}), 200
     except Exception as e:
-        logger.error(f"Classification error: {e}")
         return jsonify({"error": str(e)}), 500
 
-
-# ─────────────────────────── Event Scoring ───────────────────────────
 
 @wardrobe_bp.route('/api/wardrobe/event-scores', methods=['POST'])
 def get_event_scores():
-    """
-    POST /api/wardrobe/event-scores
-    Body: multipart/form-data
-        - image: clothing image file
-        - article (optional): e.g. "Sarees"
-        - color   (optional): e.g. "Red"
-        - usage   (optional): e.g. "Ethnic"
-        - gender  (optional): e.g. "Women"
-    Returns: event scores for all 12 event types
-    """
     if 'image' not in request.files:
-        return jsonify({"error": "No image file provided"}), 400
-
-    file = request.files['image']
-
-    # Optional metadata from form fields
-    metadata = {
-        'article': request.form.get('article', 'Tops'),
-        'color':   request.form.get('color',   'Black'),
-        'usage':   request.form.get('usage',   'Casual'),
-        'gender':  request.form.get('gender',  'Women'),
-    }
-
+        return jsonify({"error": "No image file"}), 400
+    metadata = {k: request.form.get(k, d) for k, d in
+                [('article', 'Tops'), ('color', 'Black'), ('usage', 'Casual'), ('gender', 'Women')]}
     try:
-        img_bytes = file.read()
-        img = Image.open(io.BytesIO(img_bytes))
-
+        img    = Image.open(io.BytesIO(request.files['image'].read()))
         result = _wardrobe_service.predict_event_scores(img, metadata)
-
-        return jsonify({
-            "success":    True,
-            "best_event": result["best_event"],
-            "scores":     result["scores"]
-        }), 200
-
+        return jsonify({"success": True, "best_event": result["best_event"], "scores": result["scores"]}), 200
     except Exception as e:
-        logger.error(f"Event scoring error: {e}")
         return jsonify({"error": str(e)}), 500
 
-
-# ─────────────────────────── Full Analysis ───────────────────────────
 
 @wardrobe_bp.route('/api/wardrobe/analyze', methods=['POST'])
 def analyze_clothing():
-    """
-    POST /api/wardrobe/analyze
-    Full pipeline: classify clothing → score events
-    Body: multipart/form-data
-        - image: clothing image
-        - color, usage, gender (optional)
-    Returns: clothing type + all event scores
-    """
     if 'image' not in request.files:
-        return jsonify({"error": "No image file provided"}), 400
-
-    file = request.files['image']
-
-    metadata = {
-        'color':  request.form.get('color',  'Black'),
-        'usage':  request.form.get('usage',  'Casual'),
-        'gender': request.form.get('gender', 'Women'),
-    }
-
+        return jsonify({"error": "No image file"}), 400
+    metadata = {k: request.form.get(k, d) for k, d in
+                [('color', 'Black'), ('usage', 'Casual'), ('gender', 'Women')]}
     try:
-        img_bytes = file.read()
-        img = Image.open(io.BytesIO(img_bytes))
-
+        img    = Image.open(io.BytesIO(request.files['image'].read()))
         result = _wardrobe_service.full_analysis(img, metadata or None)
-
         return jsonify({
-            "success":       True,
-            "clothing_type": result["clothing_type"],
-            "confidence":    result["confidence"],
-            "top_5":         result["top_5"],
-            "best_event":    result["best_event"],
-            "event_scores":  result["event_scores"],
-            "metadata_used": result["metadata_used"]
+            "success": True, "clothing_type": result["clothing_type"],
+            "confidence": result["confidence"], "top_5": result["top_5"],
+            "best_event": result["best_event"], "event_scores": result["event_scores"],
+            "metadata_used": result["metadata_used"],
         }), 200
-
     except Exception as e:
-        logger.error(f"Analysis error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-# ─────────────────────────── Temporal Recommendation ─────────────────
-
 @wardrobe_bp.route('/api/wardrobe/recommend-event', methods=['POST'])
 def recommend_event():
-    """
-    POST /api/wardrobe/recommend-event
-    Body: JSON  { "wear_history": [3, 7, 2, 15, ...], "use_gru": true }
-    Returns: predicted best event based on wear history
-    """
     data = request.get_json()
     if not data or 'wear_history' not in data:
         return jsonify({"error": "Provide 'wear_history' list in JSON body"}), 400
-
-    wear_history = data.get('wear_history', [])
-    use_gru      = data.get('use_gru', True)
-
     try:
-        result = _wardrobe_service.predict_next_event(wear_history, use_gru)
-        return jsonify({
-            "success":          True,
-            "predicted_event":  result["predicted_event"],
-            "scores":           result["scores"],
-            "model_used":       result["model_used"]
-        }), 200
-
+        result = _wardrobe_service.predict_next_event(data['wear_history'], data.get('use_gru', True))
+        return jsonify({"success": True, "predicted_event": result["predicted_event"],
+                        "scores": result["scores"], "model_used": result["model_used"]}), 200
     except Exception as e:
-        logger.error(f"Recommendation error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/user-profile', methods=['GET'])
+def get_user_profile():
+    try:
+        profile   = database.get_user_profile()
+        analytics = database.get_analytics()
+        if profile:
+            return jsonify({
+                "success": True,
+                "profile": {
+                    **profile,
+                    "favoriteCount":    analytics.get('favoriteCount', 0),
+                    "stylePersonality": "Developing" if profile['totalInteractions'] < 10 else "Established",
+                }
+            }), 200
+        return jsonify({"error": "Profile not found"}), 404
+    except Exception as e:
         return jsonify({"error": str(e)}), 500

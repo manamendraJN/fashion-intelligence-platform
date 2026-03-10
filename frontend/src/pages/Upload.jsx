@@ -33,15 +33,6 @@ export function UploadPage() {
     setItems(prev => prev.map(i => i.id === id ? { ...i, type, eventScores: scores } : i));
   const handleDelete = (id) =>
     setItems(prev => prev.filter(i => i.id !== id));
-  const handleRecalculateAll = async () => {
-    if (!confirm('Recalculate event scores for all items?')) return;
-    try {
-      const res  = await fetch('http://localhost:5000/api/wardrobe/recalculate-all', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      const data = await res.json();
-      if (data.success) { alert(`✅ ${data.message}`); fetchWardrobe(); }
-      else alert('❌ Failed');
-    } catch { alert('❌ Error'); }
-  };
 
   return (
     <Layout>
@@ -112,10 +103,23 @@ export function UploadPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={handleRecalculateAll}
+              onClick={async () => {
+                if (!confirm('Recalculate event scores for all items using the new improved rules?')) return;
+                try {
+                  const res = await fetch('http://localhost:5000/api/wardrobe/recalculate-all', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' } 
+                  });
+                  const data = await res.json();
+                  if (data.success) { 
+                    alert(`✅ ${data.message}\n\nYour pencil skirts should now show "Office Meeting" as the top event!`); 
+                    fetchWardrobe(); 
+                  } else alert('❌ Failed');
+                } catch { alert('❌ Error'); }
+              }}
               className="bg-gradient-to-r from-[#8B5A5A] to-[#A67676] text-white text-xs px-3 py-1.5 rounded-lg hover:shadow-md transition-all font-medium"
             >
-              🔄 Update Scores
+              🔄 Fix Event Scores
             </button>
             <select
               value={filter}

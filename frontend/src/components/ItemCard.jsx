@@ -3,18 +3,40 @@ import { motion } from 'framer-motion';
 import { Clock, Check, Sparkles, Heart, ThumbsDown, Edit2, X, Trash2 } from 'lucide-react';
 
 const CLOTHING_TYPES = [
-  'Blouse', 'Dresses', 'Jeans', 'Trousers', 'Shorts', 'Skirts',
-  'Tshirts', 'Shirts', 'Tops', 'Sweaters', 'Jackets', 'Hoodies',
-  'Leggings', 'Track Pants', 'Blazers', 'Sweatshirts', 'Tunics', 'Jumpsuit', 'Swimwear',
-  'Salwar', 'Patiala', 'Kurtis',
-  // Saree categories (specific for different occasions)
-  'Casual Saree', 'Office Saree', 'Wedding Saree', 'Traditional Saree',
-  // Kurta categories (specific for different occasions)
-  'Casual Kurta', 'Traditional Kurta',
-  // Lehenga categories
-  'Lehenga', 'Wedding Lehenga',
-  // Other traditional wear
-  'Sherwani'
+  // Tops - Office & Formal
+  'Blouse', 'Formal Shirt', 'Dress Shirt', 'Button-down Shirt',
+  // Tops - Casual
+  'Tshirts', 'Tank Top', 'Crop Top', 'Polo Shirt', 'Casual Shirt',
+  // Tops - Layering
+  'Sweaters', 'Cardigan', 'Sweatshirts', 'Hoodies',
+  // Outerwear - Formal
+  'Blazers', 'Suit Jacket', 'Formal Coat',
+  // Outerwear - Casual
+  'Jackets', 'Denim Jacket', 'Leather Jacket', 'Puffer Jacket',
+  // Bottoms - Office & Formal
+  'Pencil Skirt', 'A-Line Skirt', 'Midi Skirt', 'Maxi Skirt',
+  'Cigarette Pants', 'Formal Trousers', 'Dress Pants', 'Chinos',
+  // Bottoms - Casual
+  'Jeans', 'Denim Skirt', 'Mini Skirt', 'Cargo Pants', 'Track Pants',
+  'Shorts', 'Denim Shorts', 'Bermuda Shorts', 'Leggings',
+  // Dresses & One-piece
+  'Formal Dress', 'Cocktail Dress', 'Maxi Dress', 'Midi Dress',
+  'Casual Dress', 'Sundress', 'Shirt Dress',
+  'Jumpsuit', 'Romper',
+  // Athletic & Sports
+  'Gym Wear', 'Sports Bra', 'Yoga Pants', 'Athletic Shorts',
+  // Swimwear
+  'Swimwear', 'Bikini', 'One-piece Swimsuit', 'Swim Shorts',
+  // Traditional Wear - Sarees
+  'Wedding Saree', 'Traditional Saree', 'Silk Saree',
+  'Office Saree', 'Formal Saree', 'Casual Saree', 'Cotton Saree',
+  // Traditional Wear - Kurta/Kurti
+  'Traditional Kurta', 'Silk Kurta', 'Casual Kurta', 'Cotton Kurta', 'Kurtis',
+  // Traditional Wear - Other
+  'Lehenga', 'Wedding Lehenga', 'Sherwani',
+  'Salwar', 'Patiala', 'Churidar',
+  // Other
+  'Tops', 'Tunics'
 ];
 
 export function ItemCard({
