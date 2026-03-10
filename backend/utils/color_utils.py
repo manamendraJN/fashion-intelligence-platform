@@ -350,6 +350,60 @@ def get_matching_colors(primary_color):
     return COLOR_COMPATIBILITY.get(color, ["black", "white", "navy", "grey", "beige"])
 
 
+# ─── Category matching helpers ────────────────────────────────────────────────
+
+def is_same_category(item_type1, item_type2):
+    """
+    Checks if two items belong to the same category (both tops, both bottoms, etc.)
+    to prevent tops from pairing with tops, bottoms with bottoms, etc.
+    
+    Returns:
+        True if both items are in the same category (should not pair)
+        False if items are in different categories (can pair)
+    """
+    t1 = item_type1.lower().strip()
+    t2 = item_type2.lower().strip()
+    
+    # Define category groups
+    TOPS = ["shirt", "blouse", "top", "sweater", "hoodie", "sweatshirt", "blazer", 
+            "jacket", "cardigan", "coat", "polo", "tunic", "tank top", "crop top",
+            "t-shirt", "tshirt", "tee"]
+    
+    BOTTOMS = ["jean", "trouser", "pants", "skirt", "short", "legging", "chino",
+               "pant", "patiala", "salwar", "churidar", "cargo"]
+    
+    DRESSES = ["dress", "gown", "jumpsuit", "romper", "maxi dress", "midi dress",
+               "sundress", "cocktail dress"]
+    
+    ETHNIC_FULL = ["saree", "sari", "lehenga"]
+    
+    # Check if both are tops
+    is_t1_top = any(top in t1 for top in TOPS)
+    is_t2_top = any(top in t2 for top in TOPS)
+    if is_t1_top and is_t2_top:
+        return True  # Both are tops, don't pair
+    
+    # Check if both are bottoms
+    is_t1_bottom = any(bot in t1 for bot in BOTTOMS)
+    is_t2_bottom = any(bot in t2 for bot in BOTTOMS)
+    if is_t1_bottom and is_t2_bottom:
+        return True  # Both are bottoms, don't pair
+    
+    # Check if both are dresses
+    is_t1_dress = any(dress in t1 for dress in DRESSES)
+    is_t2_dress = any(dress in t2 for dress in DRESSES)
+    if is_t1_dress and is_t2_dress:
+        return True  # Both are dresses, don't pair
+    
+    # Check if both are full ethnic garments
+    is_t1_ethnic = any(eth in t1 for eth in ETHNIC_FULL)
+    is_t2_ethnic = any(eth in t2 for eth in ETHNIC_FULL)
+    if is_t1_ethnic and is_t2_ethnic:
+        return True  # Both are full garments, don't pair
+    
+    return False  # Different categories, can pair
+
+
 # ─── Event-based pairing ──────────────────────────────────────────────────────
 
 def get_event_based_pairing(item_type, item_color, event_type="casual"):
@@ -389,6 +443,17 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
 
     # ─── OFFICE / OFFICE MEETING ─────────────────────────────────────────────
     if ev in ("office", "office meeting"):
+        # For blazers, pair with formal bottoms
+        if "blazer" in t:
+            return {
+                "matching_types":  FORMAL_BOTTOMS,
+                "matching_colors": colors,
+                "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Leggings",
+                                    "Hoodies", "Sweatshirt", "Gym Wear", "Sports Bra",
+                                    "Blazers", "Blazer", "Cardigan"],
+                "pairing_note":    "Pair blazers with formal trousers or pencil skirts for the office.",
+                "pairing_category": "Office Wear",
+            }
         if _is_formal_top(t):
             return {
                 "matching_types":  FORMAL_BOTTOMS,
@@ -400,7 +465,7 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
             }
         if _is_formal_bottom(t):
             return {
-                "matching_types":  FORMAL_TOPS,
+                "matching_types":  FORMAL_TOPS + ["Blazers"],
                 "matching_colors": colors,
                 "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Leggings",
                                     "Hoodies", "Sweatshirt", "Gym Wear"],
@@ -441,9 +506,21 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
 
     # ─── CASUAL ──────────────────────────────────────────────────────────────
     if ev in ("casual", "shopping", "lunch", "travel"):
-        if _is_casual_top(t) or "t-shirt" in t or "hoodie" in t or "sweater" in t:
+        # Sweaters, cardigans, hoodies pair with bottoms
+        if "sweater" in t or "cardigan" in t or "hoodie" in t or "sweatshirt" in t:
             return {
-                "matching_types":  ["Jeans", "Shorts", "Casual Dress", "Denim Skirt",
+                "matching_types":  ["Jeans", "Trousers", "Chinos", "Leggings",
+                                    "Midi Skirt", "Maxi Skirt", "Cargo Pants"],
+                "matching_colors": colors,
+                "avoid_types":     ["Formal Trousers", "Pencil Skirt", "Formal Dress",
+                                    "Evening Gown", "Gown", "Sweaters", "Cardigan",
+                                    "Hoodies", "Blazers"],
+                "pairing_note":    "Layer pieces like sweaters and cardigans pair with casual bottoms.",
+                "pairing_category": "Casual Wear",
+            }
+        if _is_casual_top(t) or "t-shirt" in t or "tank top" in t or "crop top" in t:
+            return {
+                "matching_types":  ["Jeans", "Shorts", "Denim Shorts", "Denim Skirt",
                                     "Mini Skirt", "Leggings", "Chinos", "Midi Skirt",
                                     "Cargo Pants", "Bermuda Shorts"],
                 "matching_colors": colors,
@@ -452,7 +529,7 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
                 "pairing_note":    "Keep it relaxed — jeans, shorts, or casual skirts work best.",
                 "pairing_category": "Casual Wear",
             }
-        if "jean" in t or "shorts" in t or "legging" in t or "cargo" in t:
+        if "jean" in t or "shorts" in t or "legging" in t or "cargo" in t or "skirt" in t:
             return {
                 "matching_types":  CASUAL_TOPS + ["Casual Shirt", "Polo Shirt"],
                 "matching_colors": colors,
@@ -505,7 +582,15 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
                 "pairing_note":    "Dresses and jumpsuits look great with a blazer for a party.",
                 "pairing_category": "Party Wear",
             }
-        if _is_formal_top(t):
+        if "blazer" in t:
+            return {
+                "matching_types":  PARTY_BOTTOMS + ["Party Dress", "Cocktail Dress"],
+                "matching_colors": colors,
+                "avoid_types":     ["Gym Wear", "Tracksuit", "Blazers", "Blazer"],
+                "pairing_note":    "Blazers pair with party skirts, pants, or over a dress.",
+                "pairing_category": "Party Wear",
+            }
+        if _is_formal_top(t) or "crop top" in t:
             return {
                 "matching_types":  PARTY_BOTTOMS + ["Jeans"],
                 "matching_colors": colors,
@@ -529,6 +614,15 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
                 "matching_colors": colors,
                 "avoid_types":     ["Gym Wear", "Tracksuit", "Sports Bra"],
                 "pairing_note":    "A blazer over a dress elevates any date night look.",
+                "pairing_category": "Date Night",
+            }
+        if "blazer" in t:
+            return {
+                "matching_types":  ["Pencil Skirt", "A-Line Skirt", "Cigarette Pants",
+                                    "Midi Skirt", "Maxi Skirt"],
+                "matching_colors": colors,
+                "avoid_types":     ["Gym Wear", "Shorts", "Leggings", "Blazers", "Blazer"],
+                "pairing_note":    "Blazers pair elegantly with skirts or trousers for date night.",
                 "pairing_category": "Date Night",
             }
         if _is_formal_top(t):
@@ -578,8 +672,49 @@ def get_event_based_pairing(item_type, item_color, event_type="casual"):
 
     # ─── WESTERN WEDDING ─────────────────────────────────────────────────────
     if ev == "western wedding":
+        # For blazers, pair with formal bottoms
+        if "blazer" in t:
+            return {
+                "matching_types":  FORMAL_BOTTOMS + ["Formal Dress", "Pencil Skirt", "Cigarette Pants"],
+                "matching_colors": colors,
+                "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Gym Wear",
+                                    "Hoodies", "Casual Dress", "Sundress", "Blazers", "Blazer"],
+                "pairing_note":    "Pair blazers with formal trousers or elegant skirts for a wedding.",
+                "pairing_category": "Western Wedding",
+            }
+        # For formal tops, pair with formal bottoms
+        if _is_formal_top(t):
+            return {
+                "matching_types":  FORMAL_BOTTOMS + ["Blazers"],
+                "matching_colors": colors,
+                "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Gym Wear",
+                                    "Hoodies", "Casual Dress", "Sundress"],
+                "pairing_note":    "Formal tops pair with tailored bottoms or add a blazer for weddings.",
+                "pairing_category": "Western Wedding",
+            }
+        # For formal bottoms, pair with formal tops
+        if _is_formal_bottom(t):
+            return {
+                "matching_types":  FORMAL_TOPS + ["Blazers"],
+                "matching_colors": colors,
+                "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Gym Wear",
+                                    "Hoodies", "Casual Dress"],
+                "pairing_note":    "Elegant trousers or skirts pair with formal tops and blazers.",
+                "pairing_category": "Western Wedding",
+            }
+        # For dresses, pair with blazers/coats only
+        if "dress" in t or "gown" in t:
+            return {
+                "matching_types":  ["Blazers", "Blazer", "Formal Coat"],
+                "matching_colors": colors,
+                "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Gym Wear",
+                                    "Hoodies", "Casual Dress", "Sundress"],
+                "pairing_note":    "A formal dress or gown is perfect for a wedding — add a blazer if needed.",
+                "pairing_category": "Western Wedding",
+            }
+        # Default for western wedding
         return {
-            "matching_types":  FORMAL_DRESSES + FORMAL_TOPS + FORMAL_BOTTOMS + ["Blazers", "Blazer"],
+            "matching_types":  FORMAL_DRESSES + FORMAL_TOPS + FORMAL_BOTTOMS,
             "matching_colors": colors,
             "avoid_types":     ["T-Shirts", "Jeans", "Shorts", "Gym Wear",
                                  "Hoodies", "Casual Dress", "Sundress"],
@@ -644,49 +779,65 @@ def get_complementary_items(item_type, item_color):
     t = item_type.lower().strip()
     colors = get_matching_colors(item_color)
 
-    # Tops → bottoms
-    if any(x in t for x in ['shirt', 'blouse', 'top', 'sweater', 'hoodie', 'jacket', 'blazer', 'cardigan']):
+    # Blazers / Jackets / Cardigans → bottoms or dresses
+    if any(x in t for x in ['blazer', 'jacket', 'cardigan', 'coat']):
         return {
             "matching_types":  ["Jeans", "Trousers", "Chinos", "Skirt", "Shorts",
-                                 "Leggings", "Formal Trousers"],
+                                 "Leggings", "Formal Trousers", "Dress"],
             "matching_colors": colors,
-            "avoid_types":     [],
-            "pairing_note":    "Tops pair with most bottoms.",
+            "avoid_types":     ["Blazers", "Blazer", "Jacket", "Cardigan", "Coat",
+                                 "Sweaters", "Hoodie"],
+            "pairing_note":    "Layer pieces pair with bottoms or over dresses.",
             "pairing_category": "Outfit",
         }
 
-    # Bottoms → tops
+    # Tops → bottoms (but not other tops)
+    if any(x in t for x in ['shirt', 'blouse', 'top', 'sweater', 'hoodie', 'tee', 't-shirt']):
+        avoid = ["Blazers", "Blazer", "Jacket", "Cardigan", "Coat",
+                 "Shirt", "Blouse", "Sweaters", "Hoodie", "Top", "T-Shirt"]
+        return {
+            "matching_types":  ["Jeans", "Trousers", "Chinos", "Skirt", "Shorts",
+                                 "Leggings", "Formal Trousers", "Pants"],
+            "matching_colors": colors,
+            "avoid_types":     avoid,
+            "pairing_note":    "Tops pair with bottoms.",
+            "pairing_category": "Outfit",
+        }
+
+    # Bottoms → tops (but not other bottoms)
     if any(x in t for x in ['jean', 'trouser', 'skirt', 'short', 'legging', 'pant', 'chino']):
+        avoid = ["Jeans", "Trousers", "Skirt", "Shorts", "Leggings", "Pants",
+                 "Chinos", "Formal Trousers"]
         return {
             "matching_types":  ["T-Shirts", "Casual Shirt", "Blouse", "Tops",
-                                 "Sweaters", "Hoodies", "Formal Shirt"],
+                                 "Sweaters", "Hoodies", "Formal Shirt", "Blazers"],
             "matching_colors": colors,
-            "avoid_types":     [],
-            "pairing_note":    "Bottoms pair with most tops.",
+            "avoid_types":     avoid,
+            "pairing_note":    "Bottoms pair with tops.",
             "pairing_category": "Outfit",
         }
 
-    # Dresses / jumpsuits
+    # Dresses / jumpsuits → only layer pieces
     if any(x in t for x in ['dress', 'jumpsuit', 'romper']):
         return {
             "matching_types":  ["Blazers", "Blazer", "Cardigan", "Jacket"],
             "matching_colors": colors,
-            "avoid_types":     [],
+            "avoid_types":     ["Dress", "Gown", "Jumpsuit", "Romper"],
             "pairing_note":    "Add a blazer or cardigan over a dress.",
             "pairing_category": "Outfit",
         }
 
-    # Traditional
+    # Traditional → traditional only
     if any(x in t for x in ['saree', 'sari', 'kurta', 'lehenga', 'sherwani', 'salwar']):
         return {
             "matching_types":  ETHNIC_TOPS + ETHNIC_BOTTOMS,
             "matching_colors": colors,
-            "avoid_types":     [],
+            "avoid_types":     ["Saree", "Sari"] if "saree" in t or "sari" in t else [],
             "pairing_note":    "Traditional items pair with other ethnic pieces.",
             "pairing_category": "Traditional Wear",
         }
 
-    # Default
+    # Default fallback
     return {
         "matching_types":  ["T-Shirts", "Jeans", "Casual Shirt", "Trousers", "Skirt"],
         "matching_colors": colors,

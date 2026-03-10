@@ -16,6 +16,8 @@ from flask import Blueprint, request, jsonify, send_from_directory
 import logging
 import io
 import os
+import json
+from datetime import datetime
 from PIL import Image
 from werkzeug.utils import secure_filename
 from pathlib import Path
@@ -50,9 +52,10 @@ RECOMMEND_THRESHOLD = 0.60
 WEATHER_BOOST = {
     "hot": {
         "boost":    ["Tank Top", "Shorts", "Sundress", "Mini Skirt", "Crop Top",
-                     "Swimwear", "Denim Shorts", "Casual Dress"],
+                     "Swimwear", "Denim Shorts", "Casual Dress", "T-Shirts", "T-Shirt",
+                     "Sleeveless"],
         "penalise": ["Puffer Jacket", "Sweaters", "Hoodies", "Formal Coat",
-                     "Leather Jacket", "Cardigan"],
+                     "Leather Jacket", "Cardigan", "Sweatshirt"],
     },
     "cold": {
         "boost":    ["Sweaters", "Hoodies", "Cardigan", "Puffer Jacket", "Blazers",
@@ -77,7 +80,7 @@ def apply_weather_adjustment(item, weather):
     if any(bt.lower() in item_type.lower() for bt in rules["boost"]):
         score = min(1.0, score + 0.10)
     elif any(pt.lower() in item_type.lower() for pt in rules["penalise"]):
-        score = max(0.0, score - 0.20)
+        score = max(0.0, score - 0.35)  # Increased penalty to filter out inappropriate items
     item["recommendationScore"] = score
     item["suitabilityScore"]    = score
     return item
@@ -395,7 +398,7 @@ def recommend_smart():
 @wardrobe_bp.route('/api/outfit-pairing/<int:item_id>', methods=['GET'])
 def get_outfit_pairing(item_id):
     try:
-        from utils.color_utils import get_event_based_pairing
+        from utils.color_utils import get_event_based_pairing, is_same_category
 
         item = database.get_wardrobe_item(item_id)
         if not item:
@@ -404,6 +407,7 @@ def get_outfit_pairing(item_id):
         item_type  = item.get('type', 'Unknown')
         item_color = item.get('primaryColor', 'Unknown')
         event_type = request.args.get('event_type') or "casual"
+        weather    = request.args.get('weather')  # Add weather parameter
 
         recommendations  = get_event_based_pairing(item_type, item_color, event_type)
         matching_types   = recommendations['matching_types']
@@ -414,13 +418,27 @@ def get_outfit_pairing(item_id):
 
         matches     = database.get_matching_items(item_id, matching_types, matching_colors)
         avoid_lower = [a.lower() for a in avoid_types]
+        
+        # Filter out items in avoid_types AND same category (tops with tops, etc.)
         matches     = [
             m for m in matches
             if not any(
                 a in m.get('type', '').lower() or m.get('type', '').lower() in a
                 for a in avoid_lower
             )
+            and not is_same_category(item_type, m.get('type', ''))
         ]
+        
+        # Apply weather-based filtering
+        if weather:
+            # Initialize base score for pairing items (they don't have recommendationScore from DB)
+            for m in matches:
+                if 'recommendationScore' not in m:
+                    m['recommendationScore'] = 0.7  # Base pairing score
+            
+            matches = [apply_weather_adjustment(m, weather) for m in matches]
+            # Remove items heavily penalized by weather (score dropped below threshold)
+            matches = [m for m in matches if m.get('recommendationScore', 0.7) >= 0.4]
 
         matching_types_lower  = [t.lower() for t in matching_types]
         matching_colors_lower = [c.lower() for c in matching_colors]
@@ -460,6 +478,9 @@ def get_outfit_pairing(item_id):
         message = f"Found {len(enhanced_matches)} items that pair well with your {item_color} {item_type}"
         if event_type and event_type != "casual":
             message += f" for {event_type}"
+        if weather:
+            weather_desc = {"hot": "hot weather", "cold": "cold weather", "rainy": "rainy weather"}
+            message += f" in {weather_desc.get(weather.lower(), weather)}"
 
         return jsonify({
             "success":         True,
@@ -471,6 +492,7 @@ def get_outfit_pairing(item_id):
             "pairingNote":     pairing_note,
             "pairingCategory": pairing_category,
             "eventType":       event_type,
+            "weather":         weather,
             "message":         message,
         }), 200
 
@@ -563,5 +585,367 @@ def get_user_profile():
                 }
             }), 200
         return jsonify({"error": "Profile not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────── Advanced Analytics Routes ───────────────────
+@wardrobe_bp.route('/api/analytics/advanced', methods=['GET'])
+def get_advanced_analytics():
+    """
+    Get comprehensive analytics dashboard
+    Includes: mostWorn, leastWorn, eventFrequency, seasonDistribution, colorDistribution
+    """
+    try:
+        from services.analytics_service import analytics_service
+        
+        # Get wear pattern insights
+        patterns = analytics_service.get_wear_pattern_insights()
+        
+        # Get seasonal distribution
+        conn = database.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT season, COUNT(*) as count
+            FROM wardrobe_items
+            WHERE season IS NOT NULL
+            GROUP BY season
+        ''')
+        seasons = cursor.fetchall()
+        
+        # Get event frequency from wear history
+        cursor.execute('''
+            SELECT wear_history FROM wardrobe_items WHERE wear_history != "[]" AND wear_history IS NOT NULL
+        ''')
+        history_rows = cursor.fetchall()
+        
+        # Parse event frequency
+        event_counts = {}
+        for row in history_rows:
+            try:
+                history = json.loads(row['wear_history'])
+                for wear in history:
+                    occasion = wear.get('occasion', 'Unknown') if isinstance(wear, dict) else 'Unknown'
+                    event_counts[occasion] = event_counts.get(occasion, 0) + 1
+            except:
+                continue
+        
+        # Get color distribution
+        cursor.execute('''
+            SELECT primary_color, COUNT(*) as count
+            FROM wardrobe_items
+            WHERE primary_color IS NOT NULL
+            GROUP BY primary_color
+            ORDER BY count DESC
+        ''')
+        colors = cursor.fetchall()
+        conn.close()
+        
+        return jsonify({
+            "mostWorn": patterns['mostWorn'],
+            "leastWorn": patterns['leastWorn'],
+            "eventFrequency": [{"event": k, "count": v} for k, v in sorted(event_counts.items(), key=lambda x: x[1], reverse=True)],
+            "seasonDistribution": [{"season": s['season'], "count": s['count']} for s in seasons],
+            "colorDistribution": [{"color": c['primary_color'], "count": c['count']} for c in colors]
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in advanced analytics: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/wear-patterns', methods=['GET'])
+def get_wear_patterns():
+    """Get wear pattern insights"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        patterns = analytics_service.get_wear_pattern_insights()
+        return jsonify({
+            "success": True,
+            "patterns": patterns
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/cost-per-wear', methods=['GET'])
+def get_cost_analysis():
+    """Get cost per wear analysis"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        analysis = analytics_service.get_cost_per_wear_analysis()
+        return jsonify({
+            "success": True,
+            "costAnalysis": analysis
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/timeline', methods=['GET'])
+def get_wear_timeline():
+    """Get wear frequency timeline"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        period = request.args.get('period', 'monthly')  # daily, weekly, monthly
+        limit = int(request.args.get('limit', 12))
+        
+        timeline = analytics_service.get_wear_frequency_timeline(period=period, limit=limit)
+        return jsonify({
+            "success": True,
+            "timeline": timeline
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/seasonal', methods=['GET'])
+def get_seasonal_analysis():
+    """Get seasonal wear analysis"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        seasonal = analytics_service.get_seasonal_analysis()
+        return jsonify({
+            "success": True,
+            "seasonal": seasonal
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/events', methods=['GET'])
+def get_event_tracking():
+    """Get event preference tracking"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        events = analytics_service.get_event_preference_tracking()
+        return jsonify({
+            "success": True,
+            "events": events
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/forgotten-items', methods=['GET'])
+def get_forgotten_items():
+    """Get forgotten items alert"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        threshold = int(request.args.get('threshold', 90))
+        forgotten = analytics_service.get_forgotten_items(days_threshold=threshold)
+        
+        return jsonify(forgotten), 200
+    except Exception as e:
+        logger.error(f"Error in forgotten items: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/cost-efficiency', methods=['GET'])
+def get_cost_efficiency():
+    """Get cost per wear efficiency analysis"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        analysis = analytics_service.get_cost_per_wear_analysis()
+        return jsonify(analysis), 200
+    except Exception as e:
+        logger.error(f"Error in cost efficiency: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/wear-timeline', methods=['GET'])
+def get_wear_timeline_with_params():
+    """Get wear frequency timeline with custom parameters"""
+    try:
+        from services.analytics_service import analytics_service
+        
+        days = int(request.args.get('days', 90))
+        granularity = request.args.get('granularity', 'weekly')
+        
+        # Map granularity to period
+        period_map = {'weekly': 'weekly', 'daily': 'daily', 'monthly': 'monthly'}
+        period = period_map.get(granularity, 'weekly')
+        
+        # Calculate limit based on days and granularity
+        if period == 'daily':
+            limit = days
+        elif period == 'weekly':
+            limit = days // 7
+        else:  # monthly
+            limit = days // 30
+        
+        timeline = analytics_service.get_wear_frequency_timeline(period=period, limit=max(limit, 1))
+        return jsonify(timeline), 200
+    except Exception as e:
+        logger.error(f"Error in wear timeline: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/predictions', methods=['GET'])
+def get_ai_predictions():
+    """Get AI-powered predictions for next items to wear"""
+    try:
+        from services.wardrobe_model_service import WardrobeModelService
+        from pathlib import Path
+        import json
+        
+        # Get all items with wear history
+        conn = database.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, filename, image_path, clothing_type, wear_count, 
+                   wear_history, primary_color
+            FROM wardrobe_items
+            WHERE wear_history != "[]" AND wear_history IS NOT NULL
+            ORDER BY wear_count DESC
+        ''')
+        items = cursor.fetchall()
+        conn.close()
+        
+        if not items or len(items) < 3:
+            return jsonify({
+                "predictions": [],
+                "message": "Not enough wear history for predictions"
+            }), 200
+        
+        # Calculate prediction scores based on wear patterns
+        predictions = []
+        for item in items[:15]:  # Top 15 most worn items
+            # Simple prediction score based on frequency
+            score = min(100, (item['wear_count'] * 10))
+            predictions.append({
+                "item": {
+                    "id": item['id'],
+                    "filename": item['filename'],
+                    "url": item['image_path'],
+                    "type": item['clothing_type'],
+                    "primaryColor": item['primary_color']
+                },
+                "score": score
+            })
+        
+        # Sort by score
+        predictions.sort(key=lambda x: x['score'], reverse=True)
+        
+        return jsonify({
+            "predictions": predictions,
+            "model": "Frequency-based prediction",
+            "generatedAt": datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in predictions: {e}")
+        return jsonify({"predictions": [], "error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/analytics/style-profile', methods=['GET'])
+def get_analytics_style_profile():
+    """Alias for /api/style/profile for frontend compatibility"""
+    try:
+        from services.style_analyzer import style_analyzer
+        
+        profile = style_analyzer.analyze_style_profile()
+        return jsonify(profile), 200
+    except Exception as e:
+        logger.error(f"Error in style profile: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────── Style Profile Routes ───────────────────
+@wardrobe_bp.route('/api/style/profile', methods=['GET'])
+def get_style_profile():
+    """
+    Get personal style profile with ML-powered insights
+    Uses LSTM models to analyze and predict style preferences
+    """
+    try:
+        from services.style_analyzer import style_analyzer
+        
+        profile = style_analyzer.analyze_style_profile()
+        return jsonify({
+            "success": True,
+            "styleProfile": profile
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in style profile: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/style/color-palette', methods=['GET'])
+def get_color_palette():
+    """Get detailed color palette analysis"""
+    try:
+        from services.style_analyzer import style_analyzer
+        
+        palette = style_analyzer.get_color_palette_analysis()
+        return jsonify({
+            "success": True,
+            "colorPalette": palette
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/style/combinations', methods=['GET'])
+def get_outfit_combinations():
+    """Get outfit combination intelligence"""
+    try:
+        from services.style_analyzer import style_analyzer
+        
+        combinations = style_analyzer.get_outfit_combination_intelligence()
+        return jsonify({
+            "success": True,
+            "combinations": combinations
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/style/evolution', methods=['GET'])
+def get_style_evolution():
+    """Get style evolution timeline"""
+    try:
+        from services.style_analyzer import style_analyzer
+        
+        months = int(request.args.get('months', 6))
+        evolution = style_analyzer.get_style_evolution_timeline(months=months)
+        
+        return jsonify({
+            "success": True,
+            "evolution": evolution
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@wardrobe_bp.route('/api/wardrobe/<int:item_id>/purchase-info', methods=['PUT'])
+def update_purchase_info(item_id):
+    """Update item purchase information"""
+    try:
+        data = request.get_json() or {}
+        
+        purchase_price = data.get('purchasePrice')
+        purchase_date = data.get('purchaseDate')
+        season = data.get('season')
+        
+        success = database.update_item_purchase_info(
+            item_id, 
+            purchase_price=purchase_price,
+            purchase_date=purchase_date,
+            season=season
+        )
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "message": "Purchase info updated"
+            }), 200
+        else:
+            return jsonify({"error": "Item not found or no updates provided"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500

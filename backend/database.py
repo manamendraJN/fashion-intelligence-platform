@@ -57,6 +57,14 @@ def init_database():
     if 'all_colors' not in columns:
         cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN all_colors TEXT')
     
+    # Add analytics columns for advanced features
+    if 'purchase_price' not in columns:
+        cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN purchase_price REAL')
+    if 'purchase_date' not in columns:
+        cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN purchase_date TEXT')
+    if 'season' not in columns:
+        cursor.execute('ALTER TABLE wardrobe_items ADD COLUMN season TEXT')
+    
     # User profile table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_profile (
@@ -523,6 +531,92 @@ def get_matching_items(item_id, matching_types, matching_colors):
             continue
     
     return matches
+
+def update_item_purchase_info(item_id, purchase_price=None, purchase_date=None, season=None):
+    """Update purchase information for an item"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    updates = []
+    params = []
+    
+    if purchase_price is not None:
+        updates.append('purchase_price = ?')
+        params.append(purchase_price)
+    
+    if purchase_date is not None:
+        updates.append('purchase_date = ?')
+        params.append(purchase_date)
+    
+    if season is not None:
+        updates.append('season = ?')
+        params.append(season)
+    
+    if updates:
+        query = f"UPDATE wardrobe_items SET {', '.join(updates)} WHERE id = ?"
+        params.append(item_id)
+        cursor.execute(query, params)
+        conn.commit()
+        conn.close()
+        logger.info(f"✅ Updated purchase info for item {item_id}")
+        return True
+    
+    conn.close()
+    return False
+
+def get_items_by_season(season):
+    """Get items for a specific season"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM wardrobe_items WHERE season = ?', (season,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    items = []
+    for row in rows:
+        items.append({
+            'id': row['id'],
+            'filename': row['filename'],
+            'url': row['image_path'],
+            'type': row['clothing_type'],
+            'season': row['season'],
+            'wearCount': row['wear_count'],
+            'lastWorn': row['last_worn']
+        })
+    
+    return items
+
+def get_unworn_items_since(days):
+    """Get items not worn for specified days"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    from datetime import datetime, timedelta
+    cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+    
+    cursor.execute('''
+        SELECT * FROM wardrobe_items 
+        WHERE last_worn IS NULL OR last_worn < ?
+        ORDER BY wear_count ASC
+    ''', (cutoff_date,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    items = []
+    for row in rows:
+        items.append({
+            'id': row['id'],
+            'filename': row['filename'],
+            'url': row['image_path'],
+            'type': row['clothing_type'],
+            'wearCount': row['wear_count'],
+            'lastWorn': row['last_worn'],
+            'daysSinceWorn': None if not row['last_worn'] else (datetime.now() - datetime.fromisoformat(row['last_worn'])).days
+        })
+    
+    return items
 
 # Initialize database on module import
 init_database()

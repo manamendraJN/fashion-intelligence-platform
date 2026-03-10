@@ -198,6 +198,7 @@ export function ChatPage() {
             ...item,
             image:        `http://localhost:5000${item.url}`,
             eventContext: occasion.value,   // ← carried to pairing API
+            weatherContext: weather || null, // ← weather carried to pairing API
           }));
 
           if (suggestions.length === 0) {

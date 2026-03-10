@@ -184,8 +184,8 @@ export function ItemCard({
           </div>
         )}
 
-        {/* Low-confidence badge */}
-        {confidence !== undefined && confidence < 0.75 && (
+        {/* Low-confidence badge - hidden in compact mode */}
+        {!compact && confidence !== undefined && confidence < 0.75 && (
           <div className="absolute bottom-2.5 right-2.5">
             <span className="bg-amber-400/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
               {Math.round(confidence * 100)}%
