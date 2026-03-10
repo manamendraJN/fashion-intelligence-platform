@@ -102,8 +102,9 @@ Imagine a parking space:
 
 ```
 Parking Space:
+
 [← 3cm buffer →][White Lines: Parking Space][← 3cm buffer →]
-     93          96 ================ 101          104
+       93        96 ==================== 101       104
    (tolerance)         (size range)           (tolerance)
 ```
 
@@ -145,13 +146,14 @@ Standard tolerance = **3 cm**
 
 ```
 Size M with tolerance:
+
 Official range:      96-101 cm
 With tolerance:      93-104 cm
 
                 93   96        101  104
                 |----[==========]----| 
-                tolerance  tolerance
-                 buffer     buffer
+            tolerance             tolerance
+             buffer                buffer
 ```
 
 ### Different Tolerance for Different Fabrics
@@ -437,9 +439,9 @@ Step 5: Apply weight
 │ Waist       │ 70.0       │ 0.7     │ 49.0            │
 │ Shoulder    │ 83.3       │ 1.0     │ 83.3            │
 ├─────────────┴────────────┴─────────┼─────────────────┤
-│ TOTALS                              │ Sum: 209.0      │
-│                                     │ Weights: 2.7    │
-└─────────────────────────────────────┴─────────────────┘
+│ TOTALS                             │ Sum: 209.0      │
+│                                    │ Weights: 2.7    │
+└────────────────────────────────────┴─────────────────┘
 
 Final Score = 209.0 / 2.7 = 77.4
 
