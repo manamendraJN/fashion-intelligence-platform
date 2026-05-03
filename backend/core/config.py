@@ -12,6 +12,7 @@ class Config:
     # Model Configuration
     BASE_DIR = Path(__file__).parent.parent
     MODEL_DIR = BASE_DIR / 'models'
+    WARDROBE_MODEL_DIR = MODEL_DIR / 'wardrobe models'
     
     MODEL_FILES = {
         'model_v1': 'efficientnet-b3_model.pth',     #main model
@@ -50,7 +51,7 @@ class Config:
         }
     }
     
-    DEFAULT_MODEL = 'model_v1'  # Change to model_v2 or model_v3 as needed
+    DEFAULT_MODEL = 'model_v3'  # Change to model_v2 or model_v3 as needed
     
     # Image Configuration
     IMG_SIZE = (512, 384)  # height, width
@@ -64,41 +65,12 @@ class Config:
         'shoulder-to-crotch', 'thigh', 'waist', 'wrist'
     ]
        
-    # CORS Configuration
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
-
-    # ── Wardrobe AI Configuration (NEW) ────────────────────────────
-    WARDROBE_MODEL_DIR = BASE_DIR / 'models' / 'wardrobe models'
-
-    WARDROBE_MODELS = {
-        'cnn':      'cnn_visual_features.keras',
-        'cnn_h5':   'cnn_visual_features.h5',
-        'event':    'event_association_model.keras',
-        'gru':      'gru_temporal_patterns.keras',
-        'lstm':     'lstm_temporal_patterns.keras',
-    }
-
-    WARDROBE_ENCODERS = {
-        'label':        'label_encoder.pkl',
-        'event':        'event_encoder.pkl',
-        'event_mlb':    'event_mlb.pkl',
-        'metadata':     'metadata_encoders.pkl',
-    }
-
-    # 20 clothing categories your CNN knows
-    CLOTHING_CLASSES = [
-        'Dresses', 'Jackets', 'Jeans', 'Jeggings', 'Kurtas',
-        'Kurtis', 'Leggings', 'Patiala', 'Salwar', 'Sarees',
-        'Shirts', 'Shorts', 'Skirts', 'Sweaters', 'Sweatshirts',
-        'Tops', 'Track Pants', 'Trousers', 'Tshirts', 'Tunics'
+    # CORS Configuration - Allow web frontend and mobile app
+    CORS_ORIGINS = [
+        'http://localhost:3000',      # React web frontend (dev)
+        'http://localhost:5173',      # Vite web frontend (dev)
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://10.0.2.2:5000',       # Android emulator
+        '*'                           # Allow all other origins (mobile tunnel, physical devices)
     ]
-
-    # 12 event types your model scores
-    EVENT_CLASSES = [
-        'Beach Outing', 'Casual Outing', 'Date Night', 'Family Gathering',
-        'Gym', 'Office Meeting', 'Party', 'Religious Event',
-        'Shopping', 'Sports Event', 'Tamil Wedding', 'Western Wedding'
-    ]
-
-    # Wardrobe image input size
-    WARDROBE_IMG_SIZE = (224, 224)

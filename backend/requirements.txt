@@ -17,6 +17,7 @@ Werkzeug==3.0.1
 # Data Processing
 numpy==1.24.3
 pandas==2.0.3
+scikit-learn
 
 # Utilities
 tqdm==4.66.1
@@ -27,6 +28,9 @@ huggingface-hub==0.19.4
 # Production Server (optional)
 gunicorn==21.2.0
 
-# Background removal
+# Background removal / inference
 rembg==2.0.50
 onnxruntime==1.16.3
+
+# Grooming recommendation (Gemini Vision AI)
+google-generativeai==0.8.0
