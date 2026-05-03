@@ -1,0 +1,128 @@
+export const INITIAL_WARDROBE = [
+  {
+    id: '1',
+    image: 'https://images.unsplash.com/photo-1583391733958-e02376e9ced3?auto=format&fit=crop&q=80&w=800',
+    articleType: 'Kurta',
+    color: 'Red',
+    usage: 'Ethnic',
+    eventScores: {
+      'Tamil Wedding': 0.95,
+      'Office Meeting': 0.1,
+      Party: 0.85,
+      'Casual Outing': 0.4,
+    },
+    wearCount: 3,
+    lastWorn: '2023-11-15',
+  },
+  {
+    id: '2',
+    image: 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&q=80&w=800',
+    articleType: 'Shirt',
+    color: 'Navy',
+    usage: 'Formal',
+    eventScores: {
+      'Tamil Wedding': 0.2,
+      'Office Meeting': 0.92,
+      Party: 0.6,
+      'Casual Outing': 0.7,
+    },
+    wearCount: 12,
+    lastWorn: '2023-12-05',
+  },
+  {
+    id: '3',
+    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&q=80&w=800',
+    articleType: 'Saree',
+    color: 'Pink',
+    usage: 'Ethnic',
+    eventScores: {
+      'Tamil Wedding': 0.88,
+      'Office Meeting': 0.05,
+      Party: 0.9,
+      'Casual Outing': 0.1,
+    },
+    wearCount: 1,
+    lastWorn: '2023-10-20',
+  },
+  {
+    id: '4',
+    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&q=80&w=800',
+    articleType: 'Pants',
+    color: 'Black',
+    usage: 'Formal',
+    eventScores: {
+      'Tamil Wedding': 0.15,
+      'Office Meeting': 0.95,
+      Party: 0.75,
+      'Casual Outing': 0.8,
+    },
+    wearCount: 15,
+    lastWorn: '2023-12-06',
+  },
+  {
+    id: '5',
+    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800',
+    articleType: 'Dress',
+    color: 'Emerald',
+    usage: 'Party',
+    eventScores: {
+      'Tamil Wedding': 0.3,
+      'Office Meeting': 0.4,
+      Party: 0.95,
+      'Casual Outing': 0.6,
+    },
+    wearCount: 4,
+    lastWorn: '2023-11-30',
+  },
+  {
+    id: '6',
+    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&q=80&w=800',
+    articleType: 'Blazer',
+    color: 'Beige',
+    usage: 'Formal',
+    eventScores: {
+      'Tamil Wedding': 0.1,
+      'Office Meeting': 0.9,
+      Party: 0.5,
+      'Casual Outing': 0.7,
+    },
+    wearCount: 8,
+    lastWorn: '2023-12-01',
+  },
+];
+
+export const SAMPLE_QUERIES = [
+  'Tamil wedding outfit?',
+  'Office meeting tomorrow',
+  'Casual weekend look',
+  'Dinner party tonight',
+];
+
+export const ANALYTICS_DATA = {
+  composition: [
+    { name: 'Ethnic', value: 30, fill: '#8B5A5A' },
+    { name: 'Formal', value: 40, fill: '#2C2C2C' },
+    { name: 'Casual', value: 20, fill: '#A8A8A8' },
+    { name: 'Party', value: 10, fill: '#7A9B8E' },
+  ],
+  wearFrequency: [
+    { name: 'Black Pants', count: 15 },
+    { name: 'Navy Shirt', count: 12 },
+    { name: 'Beige Blazer', count: 8 },
+    { name: 'Red Kurta', count: 3 },
+    { name: 'Pink Saree', count: 1 },
+  ],
+  eventCoverage: [
+    { subject: 'Wedding', A: 85, fullMark: 100 },
+    { subject: 'Office', A: 95, fullMark: 100 },
+    { subject: 'Party', A: 70, fullMark: 100 },
+    { subject: 'Casual', A: 60, fullMark: 100 },
+    { subject: 'Sports', A: 20, fullMark: 100 },
+  ],
+  learningProgress: [
+    { month: 'Week 1', accuracy: 45 },
+    { month: 'Week 2', accuracy: 60 },
+    { month: 'Week 3', accuracy: 75 },
+    { month: 'Week 4', accuracy: 88 },
+  ],
+};
