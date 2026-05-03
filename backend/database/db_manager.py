@@ -308,11 +308,37 @@ class DatabaseManager:
         
         # Return default requirements based on category
         # This replaces the category_measurements table
-        if 't-shirt' in category_name or 'shirt' in category_name or 'blouse' in category_name:
+        if 't-shirt' in category_name or 'polo' in category_name or 'blouse' in category_name:
             return [
                 {'measurement_type': 'chest', 'importance_weight': 1.0, 'is_required': True},
                 {'measurement_type': 'shoulder_breadth', 'importance_weight': 0.8, 'is_required': False},
                 {'measurement_type': 'waist', 'importance_weight': 0.6, 'is_required': False}
+            ]
+        elif 'shirt' in category_name and 'polo' not in category_name:
+            return [
+                {'measurement_type': 'chest', 'importance_weight': 1.0, 'is_required': True},
+                {'measurement_type': 'shoulder_breadth', 'importance_weight': 0.8, 'is_required': False},
+                {'measurement_type': 'waist', 'importance_weight': 0.6, 'is_required': False},
+                {'measurement_type': 'sleeve_length', 'importance_weight': 0.7, 'is_required': False}
+            ]
+        elif 'hoodie' in category_name or 'sweatshirt' in category_name:
+            return [
+                {'measurement_type': 'chest', 'importance_weight': 1.0, 'is_required': True},
+                {'measurement_type': 'waist', 'importance_weight': 0.7, 'is_required': False},
+                {'measurement_type': 'shoulder_breadth', 'importance_weight': 0.8, 'is_required': False}
+            ]
+        elif 'sweater' in category_name or 'pullover' in category_name or 'cardigan' in category_name:
+            return [
+                {'measurement_type': 'chest', 'importance_weight': 1.0, 'is_required': True},
+                {'measurement_type': 'waist', 'importance_weight': 0.7, 'is_required': False},
+                {'measurement_type': 'shoulder_breadth', 'importance_weight': 0.8, 'is_required': False},
+                {'measurement_type': 'sleeve_length', 'importance_weight': 0.7, 'is_required': False}
+            ]
+        elif 'shorts' in category_name:
+            return [
+                {'measurement_type': 'waist', 'importance_weight': 1.0, 'is_required': True},
+                {'measurement_type': 'hip', 'importance_weight': 0.9, 'is_required': True},
+                {'measurement_type': 'leg_length', 'importance_weight': 0.5, 'is_required': False}
             ]
         elif 'jeans' in category_name or 'pants' in category_name or 'trousers' in category_name:
             return [
