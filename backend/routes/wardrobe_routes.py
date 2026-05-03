@@ -25,7 +25,7 @@ import time
 
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
-import database
+import wardrobe_database as database
 
 from core.event_constants import normalize_event_name, find_event_score, get_default_event_scores
 from utils.color_utils import get_complementary_items, are_colors_compatible

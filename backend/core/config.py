@@ -12,6 +12,7 @@ class Config:
     # Model Configuration
     BASE_DIR = Path(__file__).parent.parent
     MODEL_DIR = BASE_DIR / 'models'
+    WARDROBE_MODEL_DIR = MODEL_DIR / 'wardrobe models'
     
     MODEL_FILES = {
         'model_v1': 'efficientnet-b3_model.pth',     #main model
